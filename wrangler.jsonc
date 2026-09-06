@@ -5,5 +5,12 @@
   "assets": {
     "directory": ".",
     "binding": "ASSETS"
-  }
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "polet2027",
+      "database_id": "f1bc5f93-dd20-46a9-a1ad-3bc9c822af51"
+    }
+  ]
 }
