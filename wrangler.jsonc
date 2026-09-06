@@ -1,7 +1,9 @@
 {
   "name": "morning-flower-aa01",
+  "main": "worker.js",
   "compatibility_date": "2026-09-06",
   "assets": {
-    "directory": "."
+    "directory": ".",
+    "binding": "ASSETS"
   }
 }
