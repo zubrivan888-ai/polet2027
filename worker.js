@@ -86,8 +86,8 @@ async function logVisitor(env, user) {
       username=excluded.username,
       first_name=excluded.first_name,
       last_name=excluded.last_name,
-      last_seen=datetime('now'),
-      visits=visitors.visits+1
+      visits=visitors.visits + CASE WHEN datetime(visitors.last_seen) <= datetime('now','-10 seconds') THEN 1 ELSE 0 END,
+      last_seen=datetime('now')
   `).bind(
     user.id,
     user.username || null,
