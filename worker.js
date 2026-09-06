@@ -19,7 +19,7 @@ function json(data, status = 200) {
 function adminNames(env) {
   const configured = String(env.ADMIN_USERNAMES || '')
     .split(',').map(x => x.trim().replace(/^@/, '').toLowerCase()).filter(Boolean);
-  return new Set(['kira_golmg­reyn'.replace('\u00adreyn','reyn'), 'kira_golmg­reyn', ...configured]);
+  return new Set(['ehnea', 'kira_golmg­reyn'.replace('\u00adreyn','reyn'), 'kira_golmg­reyn', ...configured]);
 }
 
 function isAdminUser(user, env) {
