@@ -57,27 +57,42 @@ async function getAuth(request, env) {
   return { admin:isAdminUser(user, env), user };
 }
 
+async function ensureSchema(db) {
+  if (!db) return;
+  await db.prepare(`CREATE TABLE IF NOT EXISTS app_state (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    payload TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`).run();
+  await db.prepare(`CREATE TABLE IF NOT EXISTS visitors (
+    telegram_id INTEGER PRIMARY KEY,
+    username TEXT,
+    first_name TEXT,
+    last_name TEXT,
+    first_seen TEXT NOT NULL DEFAULT (datetime('now')),
+    last_seen TEXT NOT NULL DEFAULT (datetime('now')),
+    visits INTEGER NOT NULL DEFAULT 1
+  )`).run();
+}
+
 async function logVisitor(env, user) {
   if (!env.DB || !user?.id) return;
+  await ensureSchema(env.DB);
   await env.DB.prepare(`
     INSERT INTO visitors
-      (telegram_id, username, first_name, last_name, language_code, is_premium, first_seen, last_seen, open_count)
-    VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), 1)
+      (telegram_id, username, first_name, last_name, first_seen, last_seen, visits)
+    VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), 1)
     ON CONFLICT(telegram_id) DO UPDATE SET
       username=excluded.username,
       first_name=excluded.first_name,
       last_name=excluded.last_name,
-      language_code=excluded.language_code,
-      is_premium=excluded.is_premium,
       last_seen=datetime('now'),
-      open_count=visitors.open_count+1
+      visits=visitors.visits+1
   `).bind(
     user.id,
     user.username || null,
     user.first_name || null,
-    user.last_name || null,
-    user.language_code || null,
-    user.is_premium ? 1 : 0
+    user.last_name || null
   ).run();
 }
 
@@ -93,6 +108,7 @@ async function handleApi(request, env, url) {
   }
 
   if (!env.DB) return json({ok:false,error:'DB_NOT_CONFIGURED'},503);
+  await ensureSchema(env.DB);
 
   if (request.method === 'GET' && url.pathname === '/api/data') {
     const row = await env.DB.prepare('SELECT payload FROM app_state WHERE id = 1').first();
@@ -112,7 +128,7 @@ async function handleApi(request, env, url) {
   if (request.method === 'GET' && url.pathname === '/api/visitors') {
     const auth = await getAuth(request, env);
     if (!auth.admin) return json({ok:false,error:'UNAUTHORIZED'},401);
-    const rows = await env.DB.prepare(`SELECT telegram_id,username,first_name,last_name,first_seen,last_seen,open_count FROM visitors ORDER BY datetime(last_seen) DESC LIMIT 300`).all();
+    const rows = await env.DB.prepare(`SELECT telegram_id,username,first_name,last_name,first_seen,last_seen,visits AS open_count FROM visitors ORDER BY datetime(last_seen) DESC LIMIT 300`).all();
     return json({ok:true,visitors:rows.results || []});
   }
 
