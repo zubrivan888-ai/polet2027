@@ -6,7 +6,22 @@ export default {
     if (request.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
       const type = response.headers.get('content-type') || '';
       if (type.includes('text/html')) {
-        const html = await response.text();
+        let html = await response.text();
+        html = html.replace('</head>', `<style>body.telegram-app{padding-top:var(--tg-content-safe-top,0px)}</style></head>`);
+        html = html.replace('function syncTelegramSafeArea(){}', `function syncTelegramSafeArea(){
+  if(!tg?.initData)return;
+  const apply=()=>{
+    const contentTop=Number(tg?.contentSafeAreaInset?.top||0);
+    const safeTop=Number(tg?.safeAreaInset?.top||0);
+    const top=Math.max(contentTop,safeTop,0);
+    document.documentElement.style.setProperty('--tg-content-safe-top',top+'px');
+  };
+  apply();
+  tg?.onEvent?.('contentSafeAreaChanged',apply);
+  tg?.onEvent?.('safeAreaChanged',apply);
+  tg?.onEvent?.('viewportChanged',apply);
+}`);
+        html = html.replace("if(tg?.initData)document.body.classList.add('telegram-app');render();", "if(tg?.initData){document.body.classList.add('telegram-app');syncTelegramSafeArea()}render();");
         const headers = new Headers(response.headers);
         headers.set('cache-control', 'no-store');
         return new Response(html, { status: response.status, headers });
