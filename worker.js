@@ -137,6 +137,19 @@ function clientSavePatch() {
 (function(){
   const originalLoadSharedData = loadSharedData;
 
+  const jumpStyle=document.createElement('style');
+  jumpStyle.textContent='.classJump{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 14px}.classJump button{border:0;border-radius:14px;padding:11px 8px;background:#e8f2fb;color:#28678f;font-size:15px;font-weight:700}.classJump button:active{transform:scale(.96);background:#d9ebf8}';
+  document.head.appendChild(jumpStyle);
+  const participantsPage=document.getElementById('participants');
+  const participantsTitle=participantsPage?.querySelector('h2');
+  if(participantsTitle && !document.getElementById('classJump')){
+    participantsTitle.insertAdjacentHTML('afterend','<div id="classJump" class="classJump"><button onclick="jumpParticipantClass(\'11А\')">11А</button><button onclick="jumpParticipantClass(\'11Б\')">11Б</button><button onclick="jumpParticipantClass(\'11В\')">11В</button></div>');
+  }
+  window.jumpParticipantClass=function(c){
+    const target=[...document.querySelectorAll('#people .classTitle')].find(x=>x.textContent.trim().startsWith(c));
+    if(target) target.scrollIntoView({behavior:'smooth',block:'start'});
+  };
+
   window.saveData = async function(){
     localStorage.setItem('polet2027data', JSON.stringify(data));
     if(!tg?.initData) throw new Error('Откройте приложение через Telegram для сохранения в общей базе.');
