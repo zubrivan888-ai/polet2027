@@ -16,6 +16,9 @@ body.telegram-app{padding-top:var(--tg-content-safe-top,0px)}
         html = html.replace('</body>', `<script>(function(){const target=new Date(2027,5,26,0,0,0);function tick(){let d=Math.max(0,target-new Date());const days=Math.floor(d/86400000);d%=86400000;const h=Math.floor(d/3600000);d%=3600000;const m=Math.floor(d/60000);const s=Math.floor((d%60000)/1000);const pad=n=>String(n).padStart(2,'0');const a=document.getElementById('cdDays'),b=document.getElementById('cdHours'),c=document.getElementById('cdMinutes'),e=document.getElementById('cdSeconds');if(a)a.textContent=days;if(b)b.textContent=pad(h);if(c)c.textContent=pad(m);if(e)e.textContent=pad(s)}tick();setInterval(tick,1000)})();</script></body>`);
         html = html.replace('function syncTelegramSafeArea(){}', `function syncTelegramSafeArea(){
   if(!tg?.initData)return;
+  try{tg.setHeaderColor('#edf5fa')}catch(e){}
+  try{tg.setBackgroundColor('#edf5fa')}catch(e){}
+  try{tg.setBottomBarColor?.('#edf5fa')}catch(e){}
   if(tg?.isFullscreen&&typeof tg.exitFullscreen==='function'){
     try{tg.exitFullscreen()}catch(e){}
   }
