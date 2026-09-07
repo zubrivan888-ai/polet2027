@@ -1,1 +1,3 @@
-Force Cloudflare rebuild after UI enhancements. Includes class jump buttons and report sharing UI from worker.js commit 552216607158f13e3d1ca904fa5cbcaa52adbc8c.
+Force Cloudflare rebuild after graduation countdown update.
+Countdown target: 26 June 2027.
+Includes class labels 11А класс / 11Б класс / 11В класс and live countdown UI from worker.js commit aece4ed918280642a5dc25637b4d9bba064fb30a.
