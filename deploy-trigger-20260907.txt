@@ -1,0 +1,1 @@
+Force Cloudflare rebuild after UI enhancements. Includes class jump buttons and report sharing UI from worker.js commit 552216607158f13e3d1ca904fa5cbcaa52adbc8c.
