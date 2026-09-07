@@ -2,7 +2,19 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname.startsWith('/api/')) return handleApi(request, env, url);
-    return env.ASSETS.fetch(request);
+
+    const response = await env.ASSETS.fetch(request);
+    if (request.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
+      const type = response.headers.get('content-type') || '';
+      if (type.includes('text/html')) {
+        const html = await response.text();
+        const patched = html.replace('</body>', `${clientSavePatch()}</body>`);
+        const headers = new Headers(response.headers);
+        headers.set('cache-control', 'no-store');
+        return new Response(patched, { status: response.status, headers });
+      }
+    }
+    return response;
   }
 };
 
@@ -96,6 +108,120 @@ async function logVisitor(env, user) {
   ).run();
 }
 
+function migrateAppData(payload) {
+  if (!payload || typeof payload !== 'object') return { payload, changed:false };
+  if (Number(payload.rosterVersion || 0) >= 2) return { payload, changed:false };
+  const list = payload.classes?.['11В'];
+  if (!Array.isArray(list)) return { payload, changed:false };
+
+  let changed = false;
+  const oldName = list.find(x => x?.name === 'Ан А');
+  if (oldName) {
+    oldName.name = 'Ан Александра';
+    changed = true;
+  }
+  if (!list.some(x => x?.name === 'Матасов')) {
+    list.push({name:'Матасов', guests:['гость','гость','гость'], paid:false});
+    changed = true;
+  }
+  if (!list.some(x => x?.name === 'Юркова Мария')) {
+    list.push({name:'Юркова Мария', guests:[], paid:false});
+    changed = true;
+  }
+  payload.rosterVersion = 2;
+  return { payload, changed:true || changed };
+}
+
+function clientSavePatch() {
+  return `<script>
+(function(){
+  const originalLoadSharedData = loadSharedData;
+
+  window.saveData = async function(){
+    localStorage.setItem('polet2027data', JSON.stringify(data));
+    if(!tg?.initData) throw new Error('Откройте приложение через Telegram для сохранения в общей базе.');
+    let r;
+    try{
+      r = await fetch('/api/data', {
+        method:'POST',
+        headers:{'content-type':'application/json','x-telegram-init-data':tg.initData},
+        body:JSON.stringify({classes:data,expenses:expenseNames,rosterVersion:2})
+      });
+    }catch(e){
+      throw new Error('Нет соединения с общей базой.');
+    }
+    let j={};
+    try{ j = await r.json(); }catch(e){}
+    if(!r.ok || j.ok === false) throw new Error(j.error || ('Ошибка '+r.status));
+    serverReady=true;
+    return true;
+  };
+
+  window.saveEditor = async function(){
+    const name=nameInput.value.trim();
+    if(!name){alert('Введите ФИО');return}
+    const c=classInput.value;
+    const guests=[...document.querySelectorAll('#guestEditor input')].map(x=>x.value.trim()).filter(Boolean);
+    const obj={name,guests,paid:paidInput.value==='true'};
+    const backup=JSON.stringify(data);
+    const btn=document.querySelector('.sheetactions .primary');
+    const oldText=btn?.textContent || 'Сохранить';
+    if(btn){btn.disabled=true;btn.textContent='Сохранение…'}
+
+    if(editClass!==null){
+      if(editClass===c) data[c][editIndex]=obj;
+      else { data[editClass].splice(editIndex,1); data[c].push(obj); }
+    } else data[c].push(obj);
+    render();
+
+    try{
+      await window.saveData();
+      if(btn) btn.textContent='✓ Сохранено';
+      await new Promise(r=>setTimeout(r,350));
+      closeEditor();
+    }catch(e){
+      data=JSON.parse(backup);
+      localStorage.setItem('polet2027data',backup);
+      render();
+      alert('Не удалось сохранить в общей базе: '+(e?.message||e));
+    }finally{
+      if(btn){btn.disabled=false;btn.textContent=oldText}
+    }
+  };
+
+  window.deleteCurrent = async function(){
+    if(editClass===null || !confirm('Удалить участника?')) return;
+    const backup=JSON.stringify(data);
+    data[editClass].splice(editIndex,1);
+    render();
+    try{
+      await window.saveData();
+      closeEditor();
+    }catch(e){
+      data=JSON.parse(backup);
+      localStorage.setItem('polet2027data',backup);
+      render();
+      alert('Не удалось удалить из общей базы: '+(e?.message||e));
+    }
+  };
+
+  window.loadSharedData = async function(){
+    try{
+      const r=await fetch('/api/data',{cache:'no-store'});
+      if(!r.ok)return;
+      const j=await r.json();
+      if(j?.data?.classes){
+        data=j.data.classes;
+        localStorage.setItem('polet2027data',JSON.stringify(data));
+        serverReady=true;
+        render();
+      }
+    }catch(e){}
+  };
+})();
+</script>`;
+}
+
 async function handleApi(request, env, url) {
   if (request.method === 'POST' && url.pathname === '/api/session') {
     if (!env.DB) return json({ok:false,error:'DB_NOT_CONFIGURED'},503);
@@ -112,7 +238,14 @@ async function handleApi(request, env, url) {
 
   if (request.method === 'GET' && url.pathname === '/api/data') {
     const row = await env.DB.prepare('SELECT payload FROM app_state WHERE id = 1').first();
-    return json({ok:true,data:row ? JSON.parse(row.payload) : null});
+    if (!row) return json({ok:true,data:null});
+    let payload = JSON.parse(row.payload);
+    const migrated = migrateAppData(payload);
+    payload = migrated.payload;
+    if (migrated.changed) {
+      await env.DB.prepare(`UPDATE app_state SET payload=?, updated_at=datetime('now') WHERE id=1`).bind(JSON.stringify(payload)).run();
+    }
+    return json({ok:true,data:payload});
   }
 
   if (request.method === 'POST' && url.pathname === '/api/data') {
@@ -120,6 +253,7 @@ async function handleApi(request, env, url) {
     if (!auth.admin) return json({ok:false,error:'UNAUTHORIZED'},401);
     const body = await request.json().catch(() => null);
     if (!body || typeof body !== 'object') return json({ok:false,error:'BAD_DATA'},400);
+    if (!body.rosterVersion) body.rosterVersion = 2;
     const payload = JSON.stringify(body);
     await env.DB.prepare(`INSERT INTO app_state (id,payload,updated_at) VALUES (1,?,datetime('now')) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at`).bind(payload).run();
     return json({ok:true});
