@@ -138,16 +138,68 @@ function clientSavePatch() {
   const originalLoadSharedData = loadSharedData;
 
   const jumpStyle=document.createElement('style');
-  jumpStyle.textContent='.classJump{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 14px}.classJump button{border:0;border-radius:14px;padding:11px 8px;background:#e8f2fb;color:#28678f;font-size:15px;font-weight:700}.classJump button:active{transform:scale(.96);background:#d9ebf8}';
+  jumpStyle.textContent='.classJump{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 10px}.classJump button{border:0;border-radius:14px;padding:11px 8px;background:#e8f2fb;color:#28678f;font-size:15px;font-weight:700}.classJump button:active{transform:scale(.96);background:#d9ebf8}.shareReportBtn{width:100%;border:0;border-radius:14px;padding:12px 14px;margin:0 0 14px;background:#f9fcfe;color:#28678f;font-size:15px;font-weight:700;box-shadow:0 4px 14px #22334a0a}.reportModal{position:fixed;inset:0;background:#0b16266e;display:none;align-items:flex-end;justify-content:center;z-index:140}.reportModal.open{display:flex}.reportSheet{width:min(560px,100%);background:#f2f7fa;border-radius:26px 26px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:88vh;overflow:auto}.reportSheet h3{font-size:22px;margin:2px 0 12px}.reportPreview{white-space:pre-wrap;background:#fff;border-radius:16px;padding:14px;font-size:14px;line-height:1.45;margin-bottom:12px;color:#31465c}.shareGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.shareGrid button{border:0;border-radius:14px;padding:13px 10px;background:#e8f2fb;color:#245f86;font-size:14px;font-weight:700}.shareGrid button:active{transform:scale(.97)}.reportClose{width:100%;border:0;border-radius:14px;padding:12px;margin-top:10px;background:#fff;color:#5d6c7b;font-size:14px}';
   document.head.appendChild(jumpStyle);
   const participantsPage=document.getElementById('participants');
   const participantsTitle=participantsPage?.querySelector('h2');
   if(participantsTitle && !document.getElementById('classJump')){
-    participantsTitle.insertAdjacentHTML('afterend','<div id="classJump" class="classJump"><button onclick="jumpParticipantClass(\'11А\')">11А</button><button onclick="jumpParticipantClass(\'11Б\')">11Б</button><button onclick="jumpParticipantClass(\'11В\')">11В</button></div>');
+    participantsTitle.insertAdjacentHTML('afterend','<div id="classJump" class="classJump"><button onclick="jumpParticipantClass(\'11А\')">11А</button><button onclick="jumpParticipantClass(\'11Б\')">11Б</button><button onclick="jumpParticipantClass(\'11В\')">11В</button></div><button id="shareReportBtn" class="shareReportBtn" onclick="openReportShare()">↗ Поделиться кратким отчётом</button>');
+  }
+  if(!document.getElementById('reportModal')){
+    document.body.insertAdjacentHTML('beforeend','<div id="reportModal" class="reportModal" onclick="if(event.target===this)closeReportShare()"><div class="reportSheet"><h3>Краткий отчёт</h3><div id="reportPreview" class="reportPreview"></div><div class="shareGrid"><button onclick="shareClassReport(\'email\')">✉️ Почта</button><button onclick="shareClassReport(\'telegram\')">✈️ Telegram</button><button onclick="shareClassReport(\'whatsapp\')">💬 WhatsApp</button><button onclick="shareClassReport(\'copy\')">📋 Копировать</button></div><button class="reportClose" onclick="closeReportShare()">Закрыть</button></div></div>');
   }
   window.jumpParticipantClass=function(c){
     const target=[...document.querySelectorAll('#people .classTitle')].find(x=>x.textContent.trim().startsWith(c));
     if(target) target.scrollIntoView({behavior:'smooth',block:'start'});
+  };
+
+  window.buildClassReport=function(){
+    const lines=['Выпускной 2027 — краткий отчёт',''];
+    let allStudents=0,allGuests=0,allPaid=0;
+    for(const c of ['11А','11Б','11В']){
+      const list=data[c]||[];
+      const students=list.length;
+      const guests=list.reduce((s,x)=>s+(Array.isArray(x.guests)?x.guests.length:0),0);
+      const paid=list.filter(x=>x.paid).length;
+      const unpaid=students-paid;
+      allStudents+=students; allGuests+=guests; allPaid+=paid;
+      lines.push(c+': выпускников '+students+', сопровождающих '+guests+', всего '+(students+guests));
+      lines.push('Оплата: '+paid+' оплачено, '+unpaid+' не оплачено');
+      lines.push('');
+    }
+    lines.push('ИТОГО: выпускников '+allStudents+', сопровождающих '+allGuests+', всего '+(allStudents+allGuests));
+    lines.push('Оплата: '+allPaid+' оплачено, '+(allStudents-allPaid)+' не оплачено');
+    return lines.join('\n');
+  };
+  window.openReportShare=function(){
+    reportPreview.textContent=window.buildClassReport();
+    reportModal.classList.add('open');
+  };
+  window.closeReportShare=function(){reportModal.classList.remove('open')};
+  window.shareClassReport=async function(type){
+    const text=window.buildClassReport();
+    const subject='Выпускной 2027 — краткий отчёт по классам';
+    if(type==='email'){
+      location.href='mailto:?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(text);
+      return;
+    }
+    if(type==='telegram'){
+      window.open('https://t.me/share/url?url=&text='+encodeURIComponent(text),'_blank');
+      return;
+    }
+    if(type==='whatsapp'){
+      window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank');
+      return;
+    }
+    if(type==='copy'){
+      try{
+        await navigator.clipboard.writeText(text);
+      }catch(e){
+        const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();
+      }
+      const btn=[...document.querySelectorAll('.shareGrid button')].find(x=>x.textContent.includes('Копировать'));
+      if(btn){const old=btn.textContent;btn.textContent='✓ Скопировано';setTimeout(()=>btn.textContent=old,1200)}
+    }
   };
 
   window.saveData = async function(){
