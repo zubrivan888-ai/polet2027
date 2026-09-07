@@ -16,24 +16,30 @@ body.telegram-app{padding-top:var(--tg-content-safe-top,0px)}
         html = html.replace('</body>', `<script>(function(){const target=new Date(2027,5,26,0,0,0);function tick(){let d=Math.max(0,target-new Date());const days=Math.floor(d/86400000);d%=86400000;const h=Math.floor(d/3600000);d%=3600000;const m=Math.floor(d/60000);const s=Math.floor((d%60000)/1000);const pad=n=>String(n).padStart(2,'0');const a=document.getElementById('cdDays'),b=document.getElementById('cdHours'),c=document.getElementById('cdMinutes'),e=document.getElementById('cdSeconds');if(a)a.textContent=days;if(b)b.textContent=pad(h);if(c)c.textContent=pad(m);if(e)e.textContent=pad(s)}tick();setInterval(tick,1000)})();</script></body>`);
         html = html.replace('function syncTelegramSafeArea(){}', `function syncTelegramSafeArea(){
   if(!tg?.initData)return;
-  try{tg.setHeaderColor('#edf5fa')}catch(e){}
-  try{tg.setBackgroundColor('#edf5fa')}catch(e){}
-  try{tg.setBottomBarColor?.('#edf5fa')}catch(e){}
-  if(tg?.isFullscreen&&typeof tg.exitFullscreen==='function'){
-    try{tg.exitFullscreen()}catch(e){}
-  }
+  const applyChrome=()=>{
+    try{tg.setHeaderColor('#edf5fa')}catch(e){}
+    try{tg.setBackgroundColor('#edf5fa')}catch(e){}
+    try{tg.setBottomBarColor?.('#edf5fa')}catch(e){}
+  };
   const apply=()=>{
+    applyChrome();
     const contentTop=Number(tg?.contentSafeAreaInset?.top||0);
     const safeTop=Number(tg?.safeAreaInset?.top||0);
     const fullscreenFallback=tg?.isFullscreen?76:0;
     const top=Math.max(contentTop,safeTop,fullscreenFallback,0);
     document.documentElement.style.setProperty('--tg-content-safe-top',top+'px');
   };
+  applyChrome();
+  if(tg?.isFullscreen&&typeof tg.exitFullscreen==='function'){
+    try{tg.exitFullscreen()}catch(e){}
+  }
+  setTimeout(applyChrome,120);
+  setTimeout(applyChrome,450);
   apply();
   tg?.onEvent?.('contentSafeAreaChanged',apply);
   tg?.onEvent?.('safeAreaChanged',apply);
   tg?.onEvent?.('viewportChanged',apply);
-  tg?.onEvent?.('fullscreenChanged',apply);
+  tg?.onEvent?.('fullscreenChanged',()=>{setTimeout(apply,60);setTimeout(applyChrome,250)});
 }`);
         html = html.replace("if(tg?.initData)document.body.classList.add('telegram-app');render();", "if(tg?.initData){document.body.classList.add('telegram-app');syncTelegramSafeArea()}render();");
         const headers = new Headers(response.headers);
