@@ -19,13 +19,15 @@ body.telegram-app{padding-top:var(--tg-content-safe-top,0px)}
   const apply=()=>{
     const contentTop=Number(tg?.contentSafeAreaInset?.top||0);
     const safeTop=Number(tg?.safeAreaInset?.top||0);
-    const top=Math.max(contentTop,safeTop,0);
+    const fullscreenFallback=tg?.isFullscreen?76:0;
+    const top=Math.max(contentTop,safeTop,fullscreenFallback,0);
     document.documentElement.style.setProperty('--tg-content-safe-top',top+'px');
   };
   apply();
   tg?.onEvent?.('contentSafeAreaChanged',apply);
   tg?.onEvent?.('safeAreaChanged',apply);
   tg?.onEvent?.('viewportChanged',apply);
+  tg?.onEvent?.('fullscreenChanged',apply);
 }`);
         html = html.replace("if(tg?.initData)document.body.classList.add('telegram-app');render();", "if(tg?.initData){document.body.classList.add('telegram-app');syncTelegramSafeArea()}render();");
         const headers = new Headers(response.headers);
@@ -37,7 +39,7 @@ body.telegram-app{padding-top:var(--tg-content-safe-top,0px)}
   }
 };
 function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}})}
-function adminNames(env){const configured=String(env.ADMIN_USERNAMES||'').split(',').map(x=>x.trim().replace(/^@/,'').toLowerCase()).filter(Boolean);return new Set(['ehnea','kira_golmg­reyn'.replace('\u00adreyn','reyn'),'kira_golmg_reyn',...configured])}
+function adminNames(env){const configured=String(env.ADMIN_USERNAMES||'').split(',').map(x=>x.trim().replace(/^@/,'').toLowerCase()).filter(Boolean);return new Set(['ehnea','kira_golmg_reyn',...configured])}
 function isAdminUser(user,env){const username=String(user?.username||'').toLowerCase();return !!username&&adminNames(env).has(username)}
 function hex(bytes){return [...new Uint8Array(bytes)].map(b=>b.toString(16).padStart(2,'0')).join('')}
 async function validateTelegramInitData(initData,botToken){if(!initData||!botToken)return null;const p=new URLSearchParams(initData);const receivedHash=p.get('hash');if(!receivedHash)return null;p.delete('hash');const check=[...p.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>`${k}=${v}`).join('\n');const enc=new TextEncoder();const key1=await crypto.subtle.importKey('raw',enc.encode('WebAppData'),{name:'HMAC',hash:'SHA-256'},false,['sign']);const secret=await crypto.subtle.sign('HMAC',key1,enc.encode(botToken));const key2=await crypto.subtle.importKey('raw',secret,{name:'HMAC',hash:'SHA-256'},false,['sign']);const calc=hex(await crypto.subtle.sign('HMAC',key2,enc.encode(check)));if(calc!==receivedHash.toLowerCase())return null;const authDate=Number(p.get('auth_date')||0);if(!authDate||Math.abs(Date.now()/1000-authDate)>86400*7)return null;try{return JSON.parse(p.get('user')||'null')}catch{return null}}
