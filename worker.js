@@ -7,7 +7,13 @@ export default {
       const type = response.headers.get('content-type') || '';
       if (type.includes('text/html')) {
         let html = await response.text();
-        html = html.replace('</head>', `<style>body.telegram-app{padding-top:var(--tg-content-safe-top,0px)}</style></head>`);
+        html = html.replace('</head>', `<style>
+body.telegram-app{padding-top:var(--tg-content-safe-top,0px)}
+.countdown{margin:0 16px 14px;background:linear-gradient(135deg,#f9fcfe,#e3f1ff);border-radius:24px;padding:17px 14px 15px;text-align:center;box-shadow:0 5px 18px #22334a0c;position:relative;overflow:hidden}.countdownTitle{font-size:17px;font-weight:800;color:#183a63;margin-bottom:4px}.countdownDays{font-size:44px;line-height:1;font-weight:800;color:#1676d2}.countdownDaysLabel{font-size:12px;font-weight:700;color:#315c78;text-transform:uppercase;margin:3px 0 12px}.countdownTime{display:grid;grid-template-columns:repeat(3,1fr);max-width:310px;margin:auto}.countdownTime div{position:relative}.countdownTime div+div:before{content:'';position:absolute;left:0;top:3px;bottom:3px;width:1px;background:#b8cfe1}.countdownTime b{display:block;font-size:22px;color:#14233a}.countdownTime small{font-size:10px;color:#718397}.countdownDate{margin-top:11px;font-size:12px;font-weight:700;color:#28678f}.classStat b{white-space:nowrap}
+</style></head>`);
+        html = html.replace('<div class="classStat"><b>11А</b>','<div class="classStat"><b>11А класс</b>').replace('<div class="classStat"><b>11Б</b>','<div class="classStat"><b>11Б класс</b>').replace('<div class="classStat"><b>11В</b>','<div class="classStat"><b>11В класс</b>');
+        html = html.replace('</div><div class="grid"><button class="card"', `</div><div class="countdown" id="graduationCountdown"><div class="countdownTitle">До выпускного осталось</div><div class="countdownDays" id="cdDays">0</div><div class="countdownDaysLabel">дней</div><div class="countdownTime"><div><b id="cdHours">00</b><small>часов</small></div><div><b id="cdMinutes">00</b><small>минут</small></div><div><b id="cdSeconds">00</b><small>секунд</small></div></div><div class="countdownDate">📅 26 июня 2027</div></div><div class="grid"><button class="card"`);
+        html = html.replace('</body>', `<script>(function(){const target=new Date(2027,5,26,0,0,0);function tick(){let d=Math.max(0,target-new Date());const days=Math.floor(d/86400000);d%=86400000;const h=Math.floor(d/3600000);d%=3600000;const m=Math.floor(d/60000);const s=Math.floor((d%60000)/1000);const pad=n=>String(n).padStart(2,'0');const a=document.getElementById('cdDays'),b=document.getElementById('cdHours'),c=document.getElementById('cdMinutes'),e=document.getElementById('cdSeconds');if(a)a.textContent=days;if(b)b.textContent=pad(h);if(c)c.textContent=pad(m);if(e)e.textContent=pad(s)}tick();setInterval(tick,1000)})();</script></body>`);
         html = html.replace('function syncTelegramSafeArea(){}', `function syncTelegramSafeArea(){
   if(!tg?.initData)return;
   const apply=()=>{
@@ -23,15 +29,15 @@ export default {
 }`);
         html = html.replace("if(tg?.initData)document.body.classList.add('telegram-app');render();", "if(tg?.initData){document.body.classList.add('telegram-app');syncTelegramSafeArea()}render();");
         const headers = new Headers(response.headers);
-        headers.set('cache-control', 'no-store');
-        return new Response(html, { status: response.status, headers });
+        headers.set('cache-control','no-store');
+        return new Response(html,{status:response.status,headers});
       }
     }
     return response;
   }
 };
 function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}})}
-function adminNames(env){const configured=String(env.ADMIN_USERNAMES||'').split(',').map(x=>x.trim().replace(/^@/,'').toLowerCase()).filter(Boolean);return new Set(['ehnea','kira_golmg­reyn'.replace('\u00adreyn','reyn'),'kira_golmg­reyn',...configured])}
+function adminNames(env){const configured=String(env.ADMIN_USERNAMES||'').split(',').map(x=>x.trim().replace(/^@/,'').toLowerCase()).filter(Boolean);return new Set(['ehnea','kira_golmg­reyn'.replace('\u00adreyn','reyn'),'kira_golmg_reyn',...configured])}
 function isAdminUser(user,env){const username=String(user?.username||'').toLowerCase();return !!username&&adminNames(env).has(username)}
 function hex(bytes){return [...new Uint8Array(bytes)].map(b=>b.toString(16).padStart(2,'0')).join('')}
 async function validateTelegramInitData(initData,botToken){if(!initData||!botToken)return null;const p=new URLSearchParams(initData);const receivedHash=p.get('hash');if(!receivedHash)return null;p.delete('hash');const check=[...p.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>`${k}=${v}`).join('\n');const enc=new TextEncoder();const key1=await crypto.subtle.importKey('raw',enc.encode('WebAppData'),{name:'HMAC',hash:'SHA-256'},false,['sign']);const secret=await crypto.subtle.sign('HMAC',key1,enc.encode(botToken));const key2=await crypto.subtle.importKey('raw',secret,{name:'HMAC',hash:'SHA-256'},false,['sign']);const calc=hex(await crypto.subtle.sign('HMAC',key2,enc.encode(check)));if(calc!==receivedHash.toLowerCase())return null;const authDate=Number(p.get('auth_date')||0);if(!authDate||Math.abs(Date.now()/1000-authDate)>86400*7)return null;try{return JSON.parse(p.get('user')||'null')}catch{return null}}
@@ -52,9 +58,7 @@ function migrateAppData(payload){
     }
   }
   if(version<3){
-    const roster=[
-      ['Дурасова Валерия',0],['Скоробогатая Ника',0],['Шаталина Софья',1],['Лубнина Вероника',1],['Шевелева Эльвира',1],['Сорокина Ксения',1],['Эльгаров Каплан',2],['Петропавловская Софья',2],['Переяславский Владислав',2],['Суворова Вероника',2],['Матиев Умар',0],['Ташова Диана',0],['Хачатрян Давид',0],['Осипова Василина',0],['Черкезов Георгий',0],['Кумпан Виктория',1],['Иванова Анастасия',1],['Мукомол Елена',1]
-    ];
+    const roster=[['Дурасова Валерия',0],['Скоробогатая Ника',0],['Шаталина Софья',1],['Лубнина Вероника',1],['Шевелева Эльвира',1],['Сорокина Ксения',1],['Эльгаров Каплан',2],['Петропавловская Софья',2],['Переяславский Владислав',2],['Суворова Вероника',2],['Матиев Умар',0],['Ташова Диана',0],['Хачатрян Давид',0],['Осипова Василина',0],['Черкезов Георгий',0],['Кумпан Виктория',1],['Иванова Анастасия',1],['Мукомол Елена',1]];
     if(!Array.isArray(payload.classes['11Б']))payload.classes['11Б']=[];
     const list=payload.classes['11Б'];
     for(const [name,count] of roster){if(!list.some(x=>x?.name===name)){list.push({name,guests:Array(count).fill('гость'),paid:false});changed=true}}
