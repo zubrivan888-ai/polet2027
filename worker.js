@@ -10,11 +10,11 @@ export default {
         html = html.replace('</head>', `<style>
 body.telegram-app{padding-top:var(--tg-content-safe-top,0px)}
 .countdown{margin:0 16px 14px;position:relative;overflow:hidden;border-radius:28px;aspect-ratio:1978/768;background:#edf5fa url('/countdown-final.png') center/100% 100% no-repeat;box-shadow:0 8px 24px #397fb318}
-.countdownCounter{position:absolute;left:50%;top:56%;transform:translate(-50%,-50%);z-index:4;text-align:center;white-space:nowrap;line-height:1;pointer-events:none}
-.countdownCounter b{display:block;font-size:48px;line-height:.88;font-weight:950;letter-spacing:-2px;background:linear-gradient(180deg,#35a6ff 0%,#0876d7 38%,#004da9 72%,#00377e 100%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:1.4px #d99b21;text-shadow:0 1px 0 #ffe7a1,1px 2px 0 #b8750c,2px 3px 0 #8b5708,0 5px 7px #153e6860;filter:drop-shadow(0 2px 1px #173f5f35)}
-.countdownCounter small{display:block;margin-top:6px;font-size:14px;line-height:1;font-weight:900;letter-spacing:.2px;color:#153f80;text-transform:lowercase;text-shadow:0 1px 0 #fff,0 2px 3px #ffffffa8}
+.countdownCounter{position:absolute;left:50%;top:58%;transform:translate(-50%,-50%);z-index:4;text-align:center;white-space:nowrap;line-height:1;pointer-events:none}
+.countdownCounter b{display:block;font-family:Arial Black,Arial,sans-serif;font-size:44px;line-height:.9;font-weight:900;letter-spacing:-2px;color:#0757b7;-webkit-text-fill-color:#0757b7;-webkit-text-stroke:1.15px #e2a62d;text-shadow:0 -1px 0 #5eb6ff,1px 1px 0 #f7d56a,2px 2px 0 #d89b1e,3px 3px 0 #a9680a,0 5px 6px #153e6850}
+.countdownCounter small{display:block;margin-top:4px;font-size:12px;line-height:1;font-weight:900;letter-spacing:.25px;color:#153f80;text-transform:lowercase;text-shadow:0 1px 0 #fff}
 .classStat b{white-space:nowrap}
-@media(max-width:480px){.countdown{border-radius:22px}.countdownCounter{top:56%}.countdownCounter b{font-size:42px;-webkit-text-stroke:1.15px #d99b21}.countdownCounter small{font-size:12px;margin-top:5px}}
+@media(max-width:480px){.countdown{border-radius:22px}.countdownCounter{top:58%}.countdownCounter b{font-size:38px;-webkit-text-stroke:1px #e2a62d}.countdownCounter small{font-size:11px;margin-top:4px}}
 </style></head>`);
         html = html.replace('<div class="classStat"><b>11А</b>','<div class="classStat"><b>11А класс</b>').replace('<div class="classStat"><b>11Б</b>','<div class="classStat"><b>11Б класс</b>').replace('<div class="classStat"><b>11В</b>','<div class="classStat"><b>11В класс</b>');
         html = html.replace('</div><div class="grid"><button class="card"', `</div><div class="countdown" id="graduationCountdown"><div class="countdownCounter"><b id="cdDays">0</b><small id="cdDayWord">дней</small></div></div><div class="grid"><button class="card"`);
