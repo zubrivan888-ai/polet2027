@@ -9,7 +9,6 @@ export default {
         let html = await response.text();
         html = html.replace('</head>', `<style>
 body.telegram-app{padding-top:var(--tg-content-safe-top,0px)}
-.hero img{filter:brightness(1.22) saturate(1.32) contrast(1.06)}
 .countdown{margin:0 16px 14px;position:relative;overflow:hidden;border-radius:28px;aspect-ratio:1978/768;background:#edf5fa url('/countdown-final.png') center/100% 100% no-repeat;box-shadow:0 8px 24px #397fb318}
 .countdownCounter{position:absolute;left:50%;top:58%;transform:translate(-50%,-50%);z-index:4;text-align:center;white-space:nowrap;line-height:1;pointer-events:none}
 .countdownCounter b{display:block;font-family:Arial Black,Arial,sans-serif;font-size:44px;line-height:.9;font-weight:900;letter-spacing:-2px;color:#0757b7;-webkit-text-fill-color:#0757b7;-webkit-text-stroke:1.15px #e2a62d;text-shadow:0 -1px 0 #5eb6ff,1px 1px 0 #f7d56a,2px 2px 0 #d89b1e,3px 3px 0 #a9680a,0 5px 6px #153e6850}
