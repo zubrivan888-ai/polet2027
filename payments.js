@@ -120,3 +120,48 @@ document.body.appendChild(announcementModal);announcementModal.querySelector('fo
 announcementModal.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();closeAnnouncementEditor()}});
 const renderBeforeAnnouncement=render;
 render=function(){renderBeforeAnnouncement();renderAnnouncement()};
+
+/* Event details share the existing authenticated, revision-checked save path. */
+let savingEvent=false,eventReturnFocus=null;
+function eventDetails(){return paymentPayload.eventDetails||{date:'2027-06-26',time:'',venue:'Президент Отель',address:'',route:'',contacts:''}}
+function safeRoute(value){if(!value)return '';try{const u=new URL(value);return u.protocol==='https:'&&!u.username&&!u.password?u.href:''}catch{return ''}}
+function eventDate(value){if(!value)return 'Уточняется';const parts=value.split('-');return parts.length===3?parts.reverse().join('.'):value}
+function renderEventDetails(){
+ const e=eventDetails(),card=document.getElementById('event-details-card');
+ for(const [key,label] of [['date','Дата'],['time','Время сбора'],['venue','Место'],['address','Адрес'],['contacts','Контакты организаторов']]){
+  card.querySelector('[data-event="'+key+'"]').textContent=key==='date'?eventDate(e[key]):e[key]||'Уточняется';
+ }
+ const route=card.querySelector('a');route.hidden=!safeRoute(e.route);if(!route.hidden)route.href=safeRoute(e.route);else route.removeAttribute('href');
+ card.querySelector('button').hidden=!(admin&&verifiedAdmin&&serverReady);
+}
+function openEventEditor(){
+ if(!admin||!verifiedAdmin||!serverReady)return;
+ const e=eventDetails();for(const key of ['date','time','venue','address','route','contacts'])document.getElementById('event-'+key).value=e[key]||'';
+ document.getElementById('event-error').textContent='';eventReturnFocus=document.activeElement;
+ document.getElementById('event-editor').classList.add('open');document.getElementById('event-date').focus();
+}
+function closeEventEditor(){if(savingEvent)return;document.getElementById('event-editor').classList.remove('open');eventReturnFocus?.focus()}
+async function saveEventDetails(event){
+ event.preventDefault();if(savingEvent||!admin||!verifiedAdmin||!serverReady)return;
+ const e={};for(const key of ['date','time','venue','address','route','contacts'])e[key]=document.getElementById('event-'+key).value.trim();
+ const error=document.getElementById('event-error');error.textContent='';
+ if(e.route&&!safeRoute(e.route)){error.textContent='Для маршрута укажите полную ссылку, начинающуюся с https://';return}
+ if(e.date&&(!/^\d{4}-\d{2}-\d{2}$/.test(e.date)||!Number.isFinite(Date.parse(e.date))||new Date(e.date).toISOString().slice(0,10)!==e.date)){error.textContent='Проверьте дату мероприятия.';return}
+ if(e.time&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(e.time)){error.textContent='Проверьте время сбора.';return}
+ if(e.venue.length>200||e.address.length>400||e.route.length>2000||e.contacts.length>1000){error.textContent='Сократите слишком длинный текст.';return}
+ const previous=paymentPayload;savingEvent=true;document.querySelectorAll('#event-editor input,#event-editor textarea,#event-editor button').forEach(x=>x.disabled=true);
+ try{paymentPayload={...paymentPayload,eventDetails:e};await saveData();renderEventDetails();document.getElementById('event-editor').classList.remove('open');eventReturnFocus?.focus()}
+ catch(err){paymentPayload=previous;error.textContent='Не удалось сохранить: '+err.message}
+ finally{savingEvent=false;document.querySelectorAll('#event-editor input,#event-editor textarea,#event-editor button').forEach(x=>x.disabled=false)}
+}
+const eventStyle=document.createElement('style');
+eventStyle.textContent='#event-details-card{display:block}#event-details-card h3{margin:0 0 14px;font-size:20px}#event-details-card dl{margin:0}#event-details-card dt{font-size:12px;color:#526b80;margin-top:12px}#event-details-card dd{margin:4px 0 0;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px}#event-details-card .event-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}#event-details-card a{display:inline-block;text-decoration:none;padding:11px 14px;border-radius:14px;background:#1685ee;color:white;font-weight:600}#event-details-card [hidden]{display:none!important}#event-editor{z-index:146}#event-editor textarea{width:100%;min-height:110px;resize:vertical;font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;border:1px solid #dfe6ed;border-radius:14px;padding:12px}#event-editor input{min-width:0}#event-error{color:#a82d27;font-size:14px}';
+document.head.appendChild(eventStyle);
+const eventCard=document.createElement('div');eventCard.id='event-details-card';eventCard.className='row';
+eventCard.innerHTML='<h3>Мероприятие</h3><dl>'+[['date','Дата'],['time','Время сбора'],['venue','Место'],['address','Адрес'],['contacts','Контакты организаторов']].map(([key,label])=>'<dt>'+label+'</dt><dd data-event="'+key+'"></dd>').join('')+'</dl><div class="event-actions"><a hidden target="_blank" rel="noopener noreferrer">Открыть маршрут</a><button hidden type="button" class="editbtn">Изменить данные мероприятия</button></div>';
+document.querySelector('#info h2').after(eventCard);eventCard.querySelector('button').addEventListener('click',openEventEditor);
+const eventModal=document.createElement('div');eventModal.id='event-editor';eventModal.className='modal';eventModal.setAttribute('role','dialog');eventModal.setAttribute('aria-modal','true');eventModal.setAttribute('aria-labelledby','event-editor-title');
+eventModal.innerHTML='<form class="sheet"><h3 id="event-editor-title">Данные мероприятия</h3><div class="note">Изменения видны всем участникам. Неизвестные данные можно оставить пустыми.</div>'+[['date','Дата мероприятия','date',10],['time','Время сбора (местное)','time',5],['venue','Место проведения','text',200],['address','Адрес','text',400],['route','Ссылка на маршрут (https://)','url',2000]].map(([key,label,type,max])=>'<div class="field"><label for="event-'+key+'">'+label+'</label><input id="event-'+key+'" type="'+type+'" maxlength="'+max+'"></div>').join('')+'<div class="field"><label for="event-contacts">Контакты организаторов</label><textarea id="event-contacts" maxlength="1000" placeholder="Имя, телефон или Telegram"></textarea></div><p id="event-error" role="alert"></p><div class="sheetactions"><button type="button" class="secondary">Отмена</button><button type="submit" class="primary">Сохранить</button></div></form>';
+document.body.appendChild(eventModal);eventModal.querySelector('form').addEventListener('submit',saveEventDetails);eventModal.querySelector('button[type=button]').addEventListener('click',closeEventEditor);
+eventModal.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();closeEventEditor()}if(event.key==='Tab'){const fields=[...eventModal.querySelectorAll('input,textarea,button')].filter(x=>!x.disabled);if(!fields.length)return;const first=fields[0],last=fields[fields.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}}});
+const renderBeforeEventDetails=render;render=function(){renderBeforeEventDetails();renderEventDetails()};
