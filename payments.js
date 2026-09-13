@@ -25,3 +25,46 @@ function enterAdmin(){if(!verifiedAdmin)return alert('Редактировани
 const oldBuildReport=buildReport;
 buildReport=function(){if(reportType==='summary')return oldBuildReport();let out='Выпускной 2027 — отчёт по участникам и оплате\n';for(const c of reportType==='class'?[reportClass]:['11А','11Б','11В']){out+='\n'+c+'\n';for(const p of data[c]){out+=p.name+' — '+paymentStatus(p)+'; '+paymentSummary(p)+'\n';(p.guests||[]).forEach((g,i)=>{const a=p.guestPayments?.[i]||{};out+='  '+g+' — '+paymentStatus(a)+'; '+paymentSummary(a)+'\n'})}}return out};
 document.getElementById('modal').addEventListener('input',updatePaymentTotals);
+
+/* Read-only list search; does not change roster, payments, or report data. */
+const listFilters={participants:{query:'',className:''},payments:{query:'',className:''}};
+function normalizedSearch(value){return String(value||'').toLocaleLowerCase('ru-RU').replace(/ё/g,'е').trim().replace(/\s+/g,' ')}
+function matchesFamily(person,query){const text=normalizedSearch([person.name,...(person.guests||[])].join(' '));return normalizedSearch(query).split(' ').filter(Boolean).every(word=>text.includes(word))}
+function installListFilter(pageId,listId){
+  const list=document.getElementById(listId),panel=document.createElement('div');
+  panel.className='list-filter';panel.innerHTML=`<label for="${pageId}-search">Поиск по фамилии или имени</label><input id="${pageId}-search" type="search" placeholder="Например: Смирнов" autocomplete="off"><div class="list-filter-actions"><label for="${pageId}-class">Класс</label><select id="${pageId}-class"><option value="">Все классы</option><option>11А</option><option>11Б</option><option>11В</option></select><button type="button">Сбросить</button></div><div class="muted" role="status" aria-live="polite" id="${pageId}-found"></div>`;
+  list.before(panel);
+  panel.querySelector('input').addEventListener('input',event=>{listFilters[pageId].query=event.target.value;applyListFilter(pageId,listId)});
+  panel.querySelector('select').addEventListener('change',event=>{listFilters[pageId].className=event.target.value;applyListFilter(pageId,listId)});
+  panel.querySelector('button').addEventListener('click',()=>{listFilters[pageId]={query:'',className:''};panel.querySelector('input').value='';panel.querySelector('select').value='';applyListFilter(pageId,listId)});
+}
+function applyListFilter(pageId,listId){
+  const {query,className}=listFilters[pageId],list=document.getElementById(listId),rows=[...list.querySelectorAll('.row')],headings=[...list.querySelectorAll('.classTitle')];
+  let index=0,shown=0;
+  ['11А','11Б','11В'].forEach((c,ci)=>{
+    let classShown=0;
+    for(const person of data[c]||[]){
+      const visible=(!className||className===c)&&matchesFamily(person,query);
+      const count=pageId==='participants'?1:1+(person.guests||[]).length;
+      for(let i=0;i<count;i++){const row=rows[index++];if(row)row.hidden=!visible;if(visible&&row){shown++;classShown++}}
+    }
+    if(headings[ci])headings[ci].hidden=!classShown;
+  });
+  document.getElementById(pageId+'-found').textContent=shown
+    ? (pageId==='participants'?'Показано записей: ':'Показано людей: ')+shown+(query?' · вместе с семьёй':'')
+    : 'Ничего не найдено. Проверьте имя или сбросьте фильтры.';
+}
+const listFilterStyle=document.createElement('style');
+listFilterStyle.textContent='.list-filter{background:#f9fcfe;border-radius:18px;padding:14px;margin:0 0 14px}.list-filter>label{display:block;font-size:13px;color:#526b80;margin-bottom:7px}.list-filter input{width:100%;min-width:0;font-size:16px;padding:12px;border:1px solid #d5e2ed;border-radius:12px;background:white;color:#14233a}.list-filter-actions{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}.list-filter-actions label{font-size:13px}.list-filter select,.list-filter button{min-height:44px;border:1px solid #d5e2ed;border-radius:12px;padding:8px 10px;background:#eef5ff;color:#245f86;font-size:14px}.list-filter select{flex:1}.list-filter .muted{padding:10px 0 0;font-size:13px;color:#526b80}#people [hidden],#paylist [hidden]{display:none!important}.list-filter input:focus-visible,.list-filter select:focus-visible,.list-filter button:focus-visible{outline:2px solid #1685ee;outline-offset:2px}';
+document.head.appendChild(listFilterStyle);
+installListFilter('participants','people');installListFilter('payments','paylist');
+const renderBeforeFilters=render;
+render=function(){renderBeforeFilters();applyListFilter('participants','people');applyListFilter('payments','paylist')};
+const jumpBeforeFilters=jumpParticipantClass;
+jumpParticipantClass=function(c){
+  listFilters.participants.className=c;document.getElementById('participants-class').value=c;
+  applyListFilter('participants','people');
+  const heading=document.getElementById('class-'+c);
+  if(heading&&!heading.hidden)jumpBeforeFilters(c);
+  else document.getElementById('participants-search').scrollIntoView({block:'center',behavior:'smooth'});
+};
