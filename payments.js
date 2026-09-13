@@ -165,3 +165,32 @@ eventModal.innerHTML='<form class="sheet"><h3 id="event-editor-title">Данны
 document.body.appendChild(eventModal);eventModal.querySelector('form').addEventListener('submit',saveEventDetails);eventModal.querySelector('button[type=button]').addEventListener('click',closeEventEditor);
 eventModal.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();closeEventEditor()}if(event.key==='Tab'){const fields=[...eventModal.querySelectorAll('input,textarea,button')].filter(x=>!x.disabled);if(!fields.length)return;const first=fields[0],last=fields[fields.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}}});
 const renderBeforeEventDetails=render;render=function(){renderBeforeEventDetails();renderEventDetails()};
+
+/* Financial summary is computed from every individual's account, in kopecks. */
+function summarizePayments(classes){
+ const total={cost:0,paid:0,due:0,over:0,unknown:0,legacy:0,people:0};
+ for(const c of classes)for(const person of data[c]||[]){
+  for(const p of [person,...(person.guests||[]).map((g,i)=>person.guestPayments?.[i]||{})]){
+   const account=accountOf(p),paid=account.stages.reduce((s,x)=>s+x.amount,0);
+   total.people++;total.paid+=paid;
+   if(!p.payment&&p.paid)total.legacy++;
+   if(account.cost===null){total.unknown++;continue}
+   total.cost+=account.cost;total.due+=Math.max(0,account.cost-paid);total.over+=Math.max(0,paid-account.cost);
+  }
+ }
+ return total;
+}
+function summaryMarkup(title,s){
+ return '<div class="payment-summary-card"><h3>'+esc(title)+'</h3><dl><div><dt>Начислено</dt><dd>'+rub(s.cost)+'</dd></div><div><dt>Внесено</dt><dd>'+rub(s.paid)+'</dd></div><div><dt>Осталось</dt><dd>'+rub(s.due)+'</dd></div></dl><p>'+s.people+' чел.'+(s.unknown?' · Без стоимости: '+s.unknown:'')+(s.legacy?' · Прежняя отметка «Оплачено» без суммы: '+s.legacy:'')+'</p>'+(s.over?'<p>Переплата: '+rub(s.over)+'</p>':'')+'</div>';
+}
+function renderPaymentSummary(){
+ const panel=document.getElementById('payment-summary');if(!serverReady){panel.querySelector('.payment-summary-content').textContent='Сводка появится после загрузки общей базы.';return}
+ const classes=['11А','11Б','11В'];
+ panel.querySelector('.payment-summary-content').innerHTML=summaryMarkup('Все участники',summarizePayments(classes))+'<details><summary>По классам</summary>'+classes.map(c=>summaryMarkup(c,summarizePayments([c]))).join('')+'</details><p class="payment-summary-hint">Итоги по всем участникам, независимо от поиска. Начислено и остаток рассчитаны только для людей с заданной стоимостью. Внесено — все записанные платежи. Переплата одного человека не уменьшает долг другого.</p>';
+}
+const summaryStyle=document.createElement('style');
+summaryStyle.textContent='#payment-summary{margin:0 0 16px}.payment-summary-card{padding:14px;background:#f9fcfe;border-radius:18px;margin-bottom:9px}.payment-summary-card h3{font-size:16px;margin:0 0 12px}.payment-summary-card dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0}.payment-summary-card dt{font-size:12px;color:#526b80}.payment-summary-card dd{font-size:17px;font-weight:700;margin:5px 0 0;overflow-wrap:anywhere}.payment-summary-card p,.payment-summary-hint{font-size:12px;line-height:1.5;color:#526b80;margin:10px 0 0}#payment-summary summary{padding:12px;background:#e3f1ff;border-radius:12px;color:#245f86;cursor:pointer;margin-bottom:8px}.payment-summary-hint{padding:0 3px}';
+document.head.appendChild(summaryStyle);
+const paymentSummaryPanel=document.createElement('section');paymentSummaryPanel.id='payment-summary';paymentSummaryPanel.setAttribute('aria-label','Сводка оплаты');paymentSummaryPanel.innerHTML='<div class="payment-summary-content"></div>';
+document.querySelector('#payments h2').after(paymentSummaryPanel);
+const renderBeforePaymentSummary=render;render=function(){renderBeforePaymentSummary();renderPaymentSummary()};
