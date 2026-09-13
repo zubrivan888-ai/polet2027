@@ -68,3 +68,55 @@ jumpParticipantClass=function(c){
   if(heading&&!heading.hidden)jumpBeforeFilters(c);
   else document.getElementById('participants-search').scrollIntoView({block:'center',behavior:'smooth'});
 };
+
+/* One pinned announcement, stored with the shared application state. */
+let savingAnnouncement=false;
+function currentAnnouncement(){const a=paymentPayload.announcement;return a&&typeof a==='object'?a:null}
+function renderAnnouncement(){
+ const a=currentAnnouncement(),visible=!!(a&&a.visible&&a.title);
+ const card=document.getElementById('pinned-announcement');card.hidden=!visible;
+ if(visible){card.querySelector('h2').textContent=a.title;card.querySelector('p').textContent=a.text||'';card.querySelector('small').textContent=a.updatedAt?'Обновлено '+new Date(a.updatedAt).toLocaleDateString('ru-RU'):''}
+ const info=document.getElementById('announcement-info');
+ info.querySelector('p').textContent=visible?a.title+'\n'+(a.text||''):'Важных объявлений пока нет.';
+ info.querySelector('button').hidden=!(admin&&verifiedAdmin&&serverReady);
+}
+function openAnnouncementEditor(){
+ if(!admin||!verifiedAdmin||!serverReady)return;
+ const a=currentAnnouncement();
+ document.getElementById('announcement-title').value=a?.title||'';
+ document.getElementById('announcement-text').value=a?.text||'';
+ document.getElementById('announcement-visible').checked=a?a.visible!==false:true;
+ document.getElementById('announcement-error').textContent='';
+ document.getElementById('announcement-modal').classList.add('open');
+ document.getElementById('announcement-title').focus();
+}
+function closeAnnouncementEditor(){if(!savingAnnouncement)document.getElementById('announcement-modal').classList.remove('open')}
+async function saveAnnouncement(event){
+ event.preventDefault();if(savingAnnouncement||!admin||!verifiedAdmin||!serverReady)return;
+ const title=document.getElementById('announcement-title').value.trim(),text=document.getElementById('announcement-text').value.trim(),visible=document.getElementById('announcement-visible').checked;
+ const error=document.getElementById('announcement-error');error.textContent='';
+ if(!title||title.length>100||text.length>2000){error.textContent='Укажите заголовок до 100 символов и текст до 2000 символов.';return}
+ const previous=paymentPayload;
+ savingAnnouncement=true;
+ document.querySelectorAll('#announcement-modal input,#announcement-modal textarea,#announcement-modal button').forEach(x=>x.disabled=true);
+ try{
+  paymentPayload={...paymentPayload,announcement:{title,text,visible,updatedAt:new Date().toISOString()}};
+  await saveData();
+  document.getElementById('announcement-modal').classList.remove('open');renderAnnouncement();
+ }catch(e){paymentPayload=previous;error.textContent='Не удалось сохранить: '+e.message}
+ finally{savingAnnouncement=false;document.querySelectorAll('#announcement-modal input,#announcement-modal textarea,#announcement-modal button').forEach(x=>x.disabled=false)}
+}
+const announcementStyle=document.createElement('style');
+announcementStyle.textContent='#pinned-announcement{margin:8px 16px 14px;padding:16px;background:#fff5df;border:1px solid #eddbad;border-radius:20px}#pinned-announcement[hidden],#announcement-info button[hidden]{display:none!important}#pinned-announcement h2{font-size:18px;line-height:1.35;margin:0 0 8px}#pinned-announcement p,#announcement-info p{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5;margin:8px 0;font-size:14px}#pinned-announcement small{color:#6e654e;font-size:12px}#announcement-info{display:block}#announcement-info h3{margin:0;font-size:17px}#announcement-modal{z-index:145}#announcement-modal textarea{width:100%;min-height:150px;resize:vertical;border:1px solid #dfe6ed;border-radius:14px;padding:12px;font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}#announcement-modal .publish-check{display:flex;align-items:center;gap:10px;font-size:14px}#announcement-error{color:#a82d27;font-size:14px;line-height:1.4}#announcement-modal input[type=checkbox]{width:20px;height:20px}';
+document.head.appendChild(announcementStyle);
+const announcementCard=document.createElement('aside');announcementCard.id='pinned-announcement';announcementCard.hidden=true;announcementCard.setAttribute('aria-label','Важное объявление');announcementCard.innerHTML='<h2></h2><p></p><small></small>';
+document.querySelector('#home .top').after(announcementCard);
+const announcementInfo=document.createElement('div');announcementInfo.id='announcement-info';announcementInfo.className='row';announcementInfo.innerHTML='<h3>Важное объявление</h3><p></p><button type="button" class="editbtn" hidden>Изменить объявление</button>';
+const oldNews=[...document.querySelectorAll('#info .row')].find(x=>x.querySelector('b')?.textContent==='Новости');if(oldNews)oldNews.replaceWith(announcementInfo);else document.getElementById('info').appendChild(announcementInfo);
+announcementInfo.querySelector('button').addEventListener('click',openAnnouncementEditor);
+const announcementModal=document.createElement('div');announcementModal.id='announcement-modal';announcementModal.className='modal';announcementModal.setAttribute('role','dialog');announcementModal.setAttribute('aria-modal','true');announcementModal.setAttribute('aria-labelledby','announcement-heading');
+announcementModal.innerHTML='<form class="sheet"><h3 id="announcement-heading">Важное объявление</h3><div class="note">Объявление видно всем на главной. Редактировать могут только администраторы.</div><div class="field"><label for="announcement-title">Заголовок</label><input id="announcement-title" maxlength="100" required placeholder="Например: первый этап оплаты"></div><div class="field"><label for="announcement-text">Текст</label><textarea id="announcement-text" maxlength="2000" placeholder="Что нужно знать родителям"></textarea></div><label class="publish-check"><input type="checkbox" id="announcement-visible">Показывать на главной</label><p id="announcement-error" role="alert"></p><div class="sheetactions"><button type="button" class="secondary">Отмена</button><button type="submit" class="primary">Сохранить</button></div></form>';
+document.body.appendChild(announcementModal);announcementModal.querySelector('form').addEventListener('submit',saveAnnouncement);announcementModal.querySelector('button[type=button]').addEventListener('click',closeAnnouncementEditor);
+announcementModal.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();closeAnnouncementEditor()}});
+const renderBeforeAnnouncement=render;
+render=function(){renderBeforeAnnouncement();renderAnnouncement()};
