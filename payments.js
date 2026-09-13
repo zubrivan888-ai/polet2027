@@ -19,7 +19,23 @@ function setPaymentBusy(b){document.querySelectorAll('#modal button,#modal input
 const baseRender=render;
 render=function(){baseRender();let h='';for(const c of ['11А','11Б','11В']){h+=`<h3 class="classTitle">${c}</h3>`;for(const [i,p] of data[c].entries()){const people=[{p,label:p.name},...(p.guests||[]).map((g,j)=>({p:p.guestPayments?.[j]||{},label:g+' — семья '+p.name}))];for(const person of people){const status=paymentStatus(person.p);h+=`<div class="row"><div class="grow"><b>${esc(person.label)}</b><small>${esc(status)}</small><small>${esc(paymentSummary(person.p))}</small>${accountOf(person.p).stages.map((s,j)=>s.amount?`<small>Этап ${j+1}: ${rub(s.amount)} · ${esc(s.date.split('-').reverse().join('.'))}</small>`:'').join('')}</div>${admin&&verifiedAdmin?`<button class="editbtn" onclick="openEditor('${c}',${i})">Изменить</button>`:''}</div>`}}}document.getElementById('paylist').innerHTML=h;const entries=[...document.querySelectorAll('#people .row')];let pos=0;for(const c of ['11А','11Б','11В'])for(const p of data[c]){const row=entries[pos++],badge=row?.querySelector('.badge');if(badge&&!isCompanion(p)){badge.textContent=paymentStatus(p);badge.classList.toggle('paid',paymentStatus(p)==='Оплачено');}}};
 async function saveData(){if(!tg?.initData||!verifiedAdmin)throw Error('Откройте приложение в Telegram под аккаунтом администратора.');if(!serverReady)throw Error('Общая база ещё не загружена. Закройте и заново откройте приложение.');const payload={...paymentPayload,classes:data,expenses:expenses,rosterVersion:3,paymentSchemaVersion:1,_revision:paymentRevision};const r=await fetch('/api/data',{method:'POST',headers:{'content-type':'application/json','x-telegram-init-data':tg.initData},body:JSON.stringify(payload)});const j=await r.json();if(!r.ok||!j.ok)throw Error(r.status===409?'Данные уже изменены другим администратором. Заново откройте приложение и повторите ввод.':j.error||'Ошибка сохранения');paymentRevision=j.revision;paymentPayload={...payload,_revision:paymentRevision};serverReady=true}
-async function loadServer(){serverReady=false;try{const r=await fetch('/api/data',{cache:'no-store'});if(!r.ok)throw Error();const j=await r.json();if(!j.ok)throw Error();paymentPayload=j.data||{};paymentRevision=paymentPayload._revision||0;if(j.data?.classes){data=j.data.classes;for(const c of ['11А','11Б','11В'])data[c]=(data[c]||[]).map(x=>({...x,role:isCompanion(x)?'companion':'student'}));if(Array.isArray(j.data.expenses))expenses=j.data.expenses.map(x=>typeof x==='string'?{name:x,amount:0}:{...x});expenseNames=expenses.map(x=>x.name)}serverReady=true;render()}catch(e){document.getElementById('paylist').textContent='Не удалось загрузить общую базу. Откройте приложение заново.'}}
+async function loadServer(){
+ if(dataLoadPending)return;
+ dataLoadPending=true;serverReady=false;setDataLoadState('loading');
+ const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),15000);
+ try{
+  const r=await fetch('/api/data',{cache:'no-store',signal:controller.signal});
+  if(!r.ok)throw Error('HTTP '+r.status);
+  const j=await r.json();
+  if(!j.ok||!j.data?.classes||!['11А','11Б','11В'].every(c=>Array.isArray(j.data.classes[c])))throw Error('Некорректный ответ базы');
+  paymentPayload=j.data;paymentRevision=paymentPayload._revision||0;
+  data=Object.fromEntries(['11А','11Б','11В'].map(c=>[c,j.data.classes[c].map(x=>({...x,role:isCompanion(x)?'companion':'student'}))]));
+  if(Array.isArray(j.data.expenses))expenses=j.data.expenses.map(x=>typeof x==='string'?{name:x,amount:0}:{...x});
+  expenseNames=expenses.map(x=>x.name);
+  serverReady=true;render();setDataLoadState('ready');
+ }catch(e){serverReady=false;setDataLoadState('error')}
+ finally{clearTimeout(timeout);dataLoadPending=false}
+}
 async function startSession(){if(!tg?.initData)return;try{const r=await fetch('/api/session',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({initData:tg.initData})});const j=await r.json();verifiedAdmin=!!(r.ok&&j.ok&&j.isAdmin);admin=verifiedAdmin;if(admin)document.getElementById('adminWho').textContent=j.user?.username?'@'+j.user.username:'Администратор';render()}catch(e){verifiedAdmin=false;admin=false}}
 function enterAdmin(){if(!verifiedAdmin)return alert('Редактирование доступно только администратору в Telegram.');admin=true;render();showPage('participants')}
 const oldBuildReport=buildReport;
@@ -194,3 +210,21 @@ document.head.appendChild(summaryStyle);
 const paymentSummaryPanel=document.createElement('section');paymentSummaryPanel.id='payment-summary';paymentSummaryPanel.setAttribute('aria-label','Сводка оплаты');paymentSummaryPanel.innerHTML='<div class="payment-summary-content"></div>';
 document.querySelector('#payments h2').after(paymentSummaryPanel);
 const renderBeforePaymentSummary=render;render=function(){renderBeforePaymentSummary();renderPaymentSummary()};
+
+/* Never present the bundled starter roster as current server data. */
+let dataLoadPending=false;
+function setDataLoadState(state){
+ document.body.classList.toggle('shared-data-unavailable',state!=='ready');
+ const panel=document.getElementById('shared-data-status');
+ panel.hidden=state==='ready';
+ panel.querySelector('p').textContent=state==='loading'?'Загружаем актуальные списки и оплату…':'Не удалось загрузить общую базу. Списки и суммы временно скрыты, чтобы не показывать устаревшие данные.';
+ const button=panel.querySelector('button');button.hidden=state!=='error';button.disabled=state==='loading';
+ panel.setAttribute('aria-busy',String(state==='loading'));
+}
+const loadStateStyle=document.createElement('style');
+loadStateStyle.textContent='#shared-data-status{margin:12px 16px;padding:14px;border-radius:16px;background:#e3f1ff;color:#245f86}#shared-data-status p{margin:0;line-height:1.5;font-size:14px}#shared-data-status button{margin-top:10px;min-height:44px}#shared-data-status[hidden],#shared-data-status button[hidden]{display:none!important}.shared-data-unavailable .classStats,.shared-data-unavailable #home .stats,.shared-data-unavailable #participants .classJumpIntro,.shared-data-unavailable #participants .classJump,.shared-data-unavailable #participants .shareReportBtn,.shared-data-unavailable #adminControls,.shared-data-unavailable #people,.shared-data-unavailable #paylist,.shared-data-unavailable #explist,.shared-data-unavailable #payment-summary,.shared-data-unavailable .list-filter{display:none!important}';
+document.head.appendChild(loadStateStyle);
+const loadStatePanel=document.createElement('div');loadStatePanel.id='shared-data-status';loadStatePanel.setAttribute('role','status');loadStatePanel.setAttribute('aria-live','polite');loadStatePanel.innerHTML='<p></p><button type="button" class="primary" hidden>Повторить загрузку</button>';
+document.querySelector('.app').prepend(loadStatePanel);
+loadStatePanel.querySelector('button').addEventListener('click',async()=>{await loadServer();if(serverReady)await startSession()});
+setDataLoadState('loading');
