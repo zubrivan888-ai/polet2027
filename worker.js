@@ -2,6 +2,12 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname.startsWith('/api/')) return handleApi(request, env, url);
+    // Serve the invitation HTML directly instead of Assets' .html redirect.
+    if ((request.method === 'GET' || request.method === 'HEAD') && url.pathname === '/invite2027.html') {
+      const assetUrl = new URL(request.url);
+      assetUrl.pathname = '/invite2027';
+      return env.ASSETS.fetch(new Request(assetUrl, request));
+    }
     const response = await env.ASSETS.fetch(request);
     if (request.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
       const type = response.headers.get('content-type') || '';
