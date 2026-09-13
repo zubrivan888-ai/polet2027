@@ -108,10 +108,45 @@ async function handleApi(request,env,url){
     const row=await env.DB.prepare('SELECT payload FROM app_state WHERE id = 1').first();if(!row)return json({ok:true,data:null});let payload=JSON.parse(row.payload);const migrated=migrateAppData(payload);payload=migrated.payload;if(migrated.changed)await env.DB.prepare(`UPDATE app_state SET payload=?, updated_at=datetime('now') WHERE id=1`).bind(JSON.stringify(payload)).run();return json({ok:true,data:payload})
   }
   if(request.method==='POST'&&url.pathname==='/api/data'){
-    const auth=await getAuth(request,env);if(!auth.admin)return json({ok:false,error:'UNAUTHORIZED'},401);const body=await request.json().catch(()=>null);if(!body||typeof body!=='object')return json({ok:false,error:'BAD_DATA'},400);if(!body.rosterVersion||Number(body.rosterVersion)<3)body.rosterVersion=3;const payload=JSON.stringify(body);await env.DB.prepare(`INSERT INTO app_state (id,payload,updated_at) VALUES (1,?,datetime('now')) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at`).bind(payload).run();return json({ok:true})
+    const auth=await getAuth(request,env);
+    if(!auth.admin)return json({ok:false,error:'UNAUTHORIZED'},401);
+    const body=await request.json().catch(()=>null);
+    const current=await env.DB.prepare('SELECT payload FROM app_state WHERE id = 1').first();
+    const previous=current?JSON.parse(current.payload):{};
+    if(body?.paymentSchemaVersion!==1)return json({ok:false,error:'Обновите приложение для сохранения платежей.'},409);
+    const error=validatePayments(body);
+    if(error)return json({ok:false,error},400);
+    if(body._revision!==(previous._revision||0))return json({ok:false,error:'Данные изменены другим администратором.'},409);
+    body._revision=(previous._revision||0)+1;
+    body.rosterVersion=Math.max(3,Number(body.rosterVersion)||0);
+    const payload=JSON.stringify(body);
+    const result=current
+      ?await env.DB.prepare("UPDATE app_state SET payload=?, updated_at=datetime('now') WHERE id=1 AND payload=?").bind(payload,current.payload).run()
+      :await env.DB.prepare("INSERT OR IGNORE INTO app_state (id,payload,updated_at) VALUES (1,?,datetime('now'))").bind(payload).run();
+    if(result.meta?.changes!==1)return json({ok:false,error:'Данные изменены другим администратором.'},409);
+    return json({ok:true,revision:body._revision});
   }
   if(request.method==='GET'&&url.pathname==='/api/visitors'){
     const auth=await getAuth(request,env);if(!auth.admin)return json({ok:false,error:'UNAUTHORIZED'},401);const rows=await env.DB.prepare(`SELECT telegram_id,username,first_name,last_name,first_seen,last_seen,visits AS open_count FROM visitors ORDER BY datetime(last_seen) DESC LIMIT 300`).all();return json({ok:true,visitors:rows.results||[]})
   }
   return json({ok:false,error:'NOT_FOUND'},404)
+}
+
+function validatePayments(body){
+  if(!body||!body.classes||!Number.isSafeInteger(body._revision)||body._revision<0)return 'Некорректные данные.';
+  const money=n=>Number.isSafeInteger(n)&&n>=0&&n<=10000000000;
+  function validAccount(p){
+    if(p.payment===undefined)return true;
+    const a=p.payment;
+    if(!a||!(a.cost===null||money(a.cost))||!Array.isArray(a.stages)||a.stages.length!==3)return false;
+    return a.stages.every(s=>s&&money(s.amount)&&typeof s.date==='string'&&((s.amount===0&&s.date==='')||(s.amount>0&&/^\d{4}-\d{2}-\d{2}$/.test(s.date)&&Number.isFinite(Date.parse(s.date))&&new Date(s.date).toISOString().slice(0,10)===s.date)));
+  }
+  for(const c of ['11А','11Б','11В']){
+    if(!Array.isArray(body.classes[c]))return 'Некорректный список класса.';
+    for(const p of body.classes[c]){
+      if(!p||typeof p.name!=='string'||!p.name.trim()||!Array.isArray(p.guests)||p.guests.some(g=>typeof g!=='string')||!validAccount(p))return 'Проверьте стоимость, суммы и даты платежей.';
+      if(p.guestPayments!==undefined&&(!Array.isArray(p.guestPayments)||p.guestPayments.length!==p.guests.length||p.guestPayments.some(g=>!g||!validAccount(g))))return 'Проверьте платежи сопровождающих.';
+    }
+  }
+  return null;
 }
