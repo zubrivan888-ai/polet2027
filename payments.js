@@ -249,3 +249,39 @@ renderEventDetails=function(){
  programPanel.querySelector('.program-text').textContent=text||'Организаторы добавят программу после утверждения.';
  programPanel.querySelector('button').hidden=!(admin&&verifiedAdmin&&serverReady);
 };
+
+/* Financial report uses recorded payments; it never changes shared data. */
+function paymentStageTotals(classes){
+ const stages=[0,0,0];
+ for(const c of classes)for(const person of data[c]||[]){
+  for(const p of [person,...(person.guests||[]).map((g,i)=>person.guestPayments?.[i]||{})]){
+   accountOf(p).stages.forEach((stage,i)=>stages[i]+=stage.amount);
+  }
+ }
+ return stages;
+}
+function financialReportBlock(title,classes){
+ const s=summarizePayments(classes),stages=paymentStageTotals(classes);
+ return title+'\nУчастников: '+s.people+'\nНачислено: '+rub(s.cost)+'\nВнесено: '+rub(s.paid)+'\nОсталось: '+rub(s.due)
+  +'\nЭтап 1: '+rub(stages[0])+'\nЭтап 2: '+rub(stages[1])+'\nЭтап 3: '+rub(stages[2])
+  +(s.over?'\nПереплата: '+rub(s.over):'')
+  +(s.unknown?'\nБез заданной стоимости: '+s.unknown+' чел.':'')
+  +(s.legacy?'\nОтмечено «Оплачено» ранее, без суммы: '+s.legacy+' чел.':'');
+}
+const buildReportBeforeFinance=buildReport;
+buildReport=function(){
+ if(reportType!=='finance')return buildReportBeforeFinance();
+ if(!serverReady)return 'Сначала загрузите актуальные данные общей базы.';
+ const classes=['11А','11Б','11В'];
+ return 'Выпускной 2027 — финансовый отчёт\n'
+  +classes.map(c=>financialReportBlock(c+' класс',[c])).join('\n\n')
+  +'\n\n'+financialReportBlock('ОБЩИЙ ИТОГ',classes)
+  +'\n\nНачислено и остаток — только по людям с заданной стоимостью. Внесено и этапы — все записанные платежи. Переплата одного человека не уменьшает долг другого. Прежние отметки без суммы в платежи не включены.';
+};
+const financeReportButton=document.createElement('button');financeReportButton.type='button';financeReportButton.id='rt-finance';financeReportButton.setAttribute('aria-pressed','false');
+financeReportButton.innerHTML='<svg class="reportIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 20V10m8 10V4m8 16v-7"/></svg><span class="reportTypeCopy"><b>Финансовый отчёт</b><small>По классам, трём этапам и общий итог</small></span><span class="reportRadio" aria-hidden="true"></span>';
+document.querySelector('#reportModal .reportTypes').appendChild(financeReportButton);
+financeReportButton.addEventListener('click',()=>setReportType('finance'));
+const financeShareButton=document.createElement('button');financeShareButton.type='button';financeShareButton.className='shareReportBtn';financeShareButton.textContent='Поделиться финансовым отчётом';financeShareButton.style.marginTop='12px';
+financeShareButton.addEventListener('click',()=>{if(!serverReady)return;openReportShare();setReportType('finance')});
+document.getElementById('payment-summary').appendChild(financeShareButton);
