@@ -346,3 +346,28 @@ albumCard.querySelector('button').addEventListener('click',()=>{if(!admin||!veri
 const albumStyle=document.createElement('style');albumStyle.textContent='#photo-album-card{display:block}#photo-album-card h3{font-size:17px;margin:0 0 10px}#photo-album-card p{font-size:14px;line-height:1.5;color:#526b80;overflow-wrap:anywhere}#photo-album-card a{display:inline-block;background:#1685ee;color:white;padding:12px 14px;border-radius:14px;text-decoration:none;margin:0 8px 8px 0}#photo-album-card button{min-height:44px}#photo-album-card [hidden]{display:none!important}.shared-data-unavailable #photo-album-card{display:none!important}';document.head.appendChild(albumStyle);
 const renderEventBeforeAlbum=renderEventDetails;
 renderEventDetails=function(){renderEventBeforeAlbum();const e=eventDetails(),url=safeRoute(e.albumUrl||''),link=albumCard.querySelector('a');albumCard.querySelector('p').textContent=url?(e.albumTitle||'Фотографии выпускного'):'Фотоальбом пока не добавлен.';link.hidden=!url;if(url)link.href=url;else link.removeAttribute('href');albumCard.querySelector('button').hidden=!(admin&&verifiedAdmin&&serverReady)};
+
+/* Home readability and consistent section icons. */
+const homeVisualStyle=document.createElement('style');
+homeVisualStyle.textContent=`
+#home .classStat strong{font-family:Arial,sans-serif;font-weight:800;font-variant-numeric:tabular-nums;text-shadow:none;filter:none}
+#home .classStat strong:before,#home .classStat strong:after,#home .classStat small:after{display:none}
+#home .classStat small{font-family:Arial,sans-serif;font-size:12px!important;font-weight:600;letter-spacing:normal;opacity:1;transform:none}
+#home .card small{color:#526579;line-height:1.4}
+#home .stats span,#home .top p{color:#526579}
+#home .card .ico{color:#216ca8}
+#home .card .ico svg{width:25px;height:25px;display:block}
+#home .card:focus-visible{outline:3px solid #216ca8;outline-offset:3px}
+`;
+document.head.appendChild(homeVisualStyle);
+const homeSectionIcons=[
+'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/><circle cx="9" cy="7" r="4"/>',
+'<rect x="5" y="4" width="14" height="18" rx="2"/><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M9 11h6M9 15h6M9 19h4"/>',
+'<path d="M8 21V3h6a5 5 0 0 1 0 10H5M5 17h10"/>',
+'<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/>'
+];
+document.querySelectorAll('#home .grid .card .ico').forEach((icon,index)=>{
+ if(!homeSectionIcons[index])return;
+ icon.setAttribute('aria-hidden','true');
+ icon.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+homeSectionIcons[index]+'</svg>';
+});
