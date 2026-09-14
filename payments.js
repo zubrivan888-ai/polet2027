@@ -190,8 +190,9 @@ const renderBeforeEventDetails=render;render=function(){renderBeforeEventDetails
 
 /* Financial summary is computed from every individual's account, in kopecks. */
 function summarizePayments(classes){
- const total={cost:0,paid:0,due:0,over:0,unknown:0,legacy:0,people:0};
+ const total={cost:0,paid:0,due:0,over:0,unknown:0,legacy:0,people:0,teachers:0};
  for(const c of classes)for(const person of data[c]||[]){
+  if(person.role==='teacher')total.teachers++;
   for(const p of [person,...(person.guests||[]).map((g,i)=>person.guestPayments?.[i]||{})]){
    const account=accountOf(p),paid=account.stages.reduce((s,x)=>s+x.amount,0);
    total.people++;total.paid+=paid;
@@ -203,7 +204,7 @@ function summarizePayments(classes){
  return total;
 }
 function summaryMarkup(title,s){
- return '<div class="payment-summary-card"><h3>'+esc(title)+'</h3><dl><div><dt>Начислено</dt><dd>'+rub(s.cost)+'</dd></div><div><dt>Внесено</dt><dd>'+rub(s.paid)+'</dd></div><div><dt>Осталось</dt><dd>'+rub(s.due)+'</dd></div></dl><p>'+s.people+' чел.'+(s.unknown?' · Без стоимости: '+s.unknown:'')+(s.legacy?' · Прежняя отметка «Оплачено» без суммы: '+s.legacy:'')+'</p>'+(s.over?'<p>Переплата: '+rub(s.over)+'</p>':'')+'</div>';
+ return '<div class="payment-summary-card"><h3>'+esc(title)+'</h3><dl><div><dt>Начислено</dt><dd>'+rub(s.cost)+'</dd></div><div><dt>Внесено</dt><dd>'+rub(s.paid)+'</dd></div><div><dt>Осталось</dt><dd>'+rub(s.due)+'</dd></div></dl><p>Всего: '+s.people+' чел.<br>Платных участников: '+(s.people-s.teachers)+'<br>Преподавателей: '+s.teachers+' · бесплатно'+(s.unknown?' · Без стоимости: '+s.unknown:'')+(s.legacy?' · Прежняя отметка «Оплачено» без суммы: '+s.legacy:'')+'</p>'+(s.over?'<p>Переплата: '+rub(s.over)+'</p>':'')+'</div>';
 }
 function renderPaymentSummary(){
  const panel=document.getElementById('payment-summary');if(!serverReady){panel.querySelector('.payment-summary-content').textContent='Сводка появится после загрузки общей базы.';return}
