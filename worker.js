@@ -104,6 +104,21 @@ async function handleApi(request,env,url){
     const body=await request.json().catch(()=>({}));const user=await validateTelegramInitData(body.initData||'',env.TELEGRAM_BOT_TOKEN);if(!user)return json({ok:false,error:'INVALID_TELEGRAM_SESSION'},401);await logVisitor(env,user);return json({ok:true,isAdmin:isAdminUser(user,env),user:{id:user.id,username:user.username||'',first_name:user.first_name||'',last_name:user.last_name||''}})
   }
   if(!env.DB)return json({ok:false,error:'DB_NOT_CONFIGURED'},503);await ensureSchema(env.DB);
+  if(request.method==='POST'&&url.pathname==='/api/role-prices'){
+    const auth=await getAuth(request,env);if(!auth.admin)return json({ok:false,error:'UNAUTHORIZED'},401);
+    for(let attempt=0;attempt<3;attempt++){
+      const row=await env.DB.prepare('SELECT payload FROM app_state WHERE id = 1').first();
+      if(!row)return json({ok:false,error:'Нет данных участников.'},409);
+      let body;try{body=JSON.parse(row.payload);const changed=applyRolePrices(body);
+        if(!changed)return json({ok:true,changed:false,revision:body._revision||0});
+      }catch(e){return json({ok:false,error:e.message},400)}
+      body._revision=(body._revision||0)+1;
+      const error=validatePayments(body);if(error)return json({ok:false,error},400);
+      const result=await env.DB.prepare("UPDATE app_state SET payload=?, updated_at=datetime('now') WHERE id=1 AND payload=?").bind(JSON.stringify(body),row.payload).run();
+      if(result.meta?.changes===1)return json({ok:true,changed:true,revision:body._revision});
+    }
+    return json({ok:false,error:'База изменилась. Откройте приложение заново.'},409);
+  }
   if(request.method==='GET'&&url.pathname==='/api/data'){
     const row=await env.DB.prepare('SELECT payload FROM app_state WHERE id = 1').first();if(!row)return json({ok:true,data:null});let payload=JSON.parse(row.payload);const migrated=migrateAppData(payload);payload=migrated.payload;if(migrated.changed)await env.DB.prepare(`UPDATE app_state SET payload=?, updated_at=datetime('now') WHERE id=1`).bind(JSON.stringify(payload)).run();return json({ok:true,data:payload})
   }
@@ -113,7 +128,8 @@ async function handleApi(request,env,url){
     const body=await request.json().catch(()=>null);
     const current=await env.DB.prepare('SELECT payload FROM app_state WHERE id = 1').first();
     const previous=current?JSON.parse(current.payload):{};
-    if(body?.paymentSchemaVersion!==1)return json({ok:false,error:'Обновите приложение для сохранения платежей.'},409);
+    if(body?.paymentSchemaVersion!==2)return json({ok:false,error:'Обновите приложение для сохранения платежей.'},409);
+    try{applyRolePrices(body)}catch(e){return json({ok:false,error:e.message},400)}
     const error=validatePayments(body);
     if(error)return json({ok:false,error},400);
     if(body._revision!==(previous._revision||0))return json({ok:false,error:'Данные изменены другим администратором.'},409);
@@ -149,4 +165,28 @@ function validatePayments(body){
     }
   }
   return null;
+}
+
+function applyRolePrices(payload){
+ let changed=false,teachers=0;
+ if(!payload?.classes)throw Error('Нет списка участников.');
+ for(const c of ['11А','11Б','11В']){
+  if(!Array.isArray(payload.classes[c]))throw Error('Некорректный список класса.');
+  for(const p of payload.classes[c]){
+   const role=p.role||'student';if(!['student','companion','teacher'].includes(role))throw Error('Неизвестный статус: '+p.name);
+   if(role==='teacher')teachers++;
+   if(!Array.isArray(p.guests))throw Error('Некорректные сопровождающие.');
+   if(role!=='student'&&p.guests.length)throw Error('У преподавателя или сопровождающего не должно быть вложенных гостей: '+p.name);
+   const setCost=(record,cost)=>{
+    if(!record.payment){record.payment={cost,stages:[{amount:0,date:''},{amount:0,date:''},{amount:0,date:''}]};changed=true;}
+    else if(record.payment.cost!==cost){record.payment.cost=cost;changed=true;}
+   };
+   setCost(p,role==='teacher'?0:role==='companion'?2100000:2440000);
+   if(p.guestPayments!==undefined&&(!Array.isArray(p.guestPayments)||p.guestPayments.length!==p.guests.length))throw Error('Проверьте платежи сопровождающих: '+p.name);
+   if(p.guests.length&&!p.guestPayments){p.guestPayments=p.guests.map(()=>({}));changed=true;}
+   (p.guestPayments||[]).forEach(g=>setCost(g,2100000));
+  }
+ }
+ if(teachers>5)throw Error('По договору доступно 5 бесплатных мест преподавателей.');
+ return changed;
 }

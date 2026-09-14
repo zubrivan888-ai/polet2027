@@ -20,7 +20,7 @@ function planFirstPaymentImport(source){
  for(const [name,guests] of manifest){
   const found=list.map((p,i)=>({p,i})).filter(x=>x.p.name===name);
   if(found.length!==1)throw Error(name+': найдено записей '+found.length+' (нужна ровно одна).');
-  const {p,i}=found[0];if(p.role==='companion')throw Error(name+': в базе указан как сопровождающий.');
+  const {p,i}=found[0];if(p.role&&p.role!=='student')throw Error(name+': в базе указан как сопровождающий.');
   if(!Array.isArray(p.guests))throw Error(name+': отсутствует список сопровождающих.');
   if(p.guestPayments!==undefined&&(!Array.isArray(p.guestPayments)||p.guestPayments.length!==p.guests.length))throw Error(name+': нарушено соответствие сопровождающих и платежей.');
   apply(p,name+' — выпускник',i+':self');
@@ -71,7 +71,7 @@ checkButton.addEventListener('click',async()=>{
     const current=await requestJson('/api/data');
     if(JSON.stringify(current.data)!==snapshot)throw Error('База изменилась после предпросмотра. Выполните проверку заново.');
     const checked=planFirstPaymentImport(current.data),payload=checked.payload;
-    payload.paymentSchemaVersion=1;payload._revision=current.data._revision||0;
+    payload.paymentSchemaVersion=2;payload._revision=current.data._revision||0;
     sent=true;
     await requestJson('/api/data',{method:'POST',headers:{'content-type':'application/json','x-telegram-init-data':tg.initData},body:JSON.stringify(payload)});
     const actual=await requestJson('/api/data'),verified=planFirstPaymentImport(actual.data);
