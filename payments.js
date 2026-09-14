@@ -152,19 +152,19 @@ function renderEventDetails(){
 }
 function openEventEditor(){
  if(!admin||!verifiedAdmin||!serverReady)return;
- const e=eventDetails();for(const key of ['date','time','venue','address','route','contacts'])document.getElementById('event-'+key).value=e[key]||'';
+ const e=eventDetails();for(const key of ['date','time','venue','address','route','contacts','program'])document.getElementById('event-'+key).value=e[key]||'';
  document.getElementById('event-error').textContent='';eventReturnFocus=document.activeElement;
  document.getElementById('event-editor').classList.add('open');document.getElementById('event-date').focus();
 }
 function closeEventEditor(){if(savingEvent)return;document.getElementById('event-editor').classList.remove('open');eventReturnFocus?.focus()}
 async function saveEventDetails(event){
  event.preventDefault();if(savingEvent||!admin||!verifiedAdmin||!serverReady)return;
- const e={};for(const key of ['date','time','venue','address','route','contacts'])e[key]=document.getElementById('event-'+key).value.trim();
+ const e={};for(const key of ['date','time','venue','address','route','contacts','program'])e[key]=document.getElementById('event-'+key).value.trim();
  const error=document.getElementById('event-error');error.textContent='';
  if(e.route&&!safeRoute(e.route)){error.textContent='Для маршрута укажите полную ссылку, начинающуюся с https://';return}
  if(e.date&&(!/^\d{4}-\d{2}-\d{2}$/.test(e.date)||!Number.isFinite(Date.parse(e.date))||new Date(e.date).toISOString().slice(0,10)!==e.date)){error.textContent='Проверьте дату мероприятия.';return}
  if(e.time&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(e.time)){error.textContent='Проверьте время сбора.';return}
- if(e.venue.length>200||e.address.length>400||e.route.length>2000||e.contacts.length>1000){error.textContent='Сократите слишком длинный текст.';return}
+ if(e.venue.length>200||e.address.length>400||e.route.length>2000||e.contacts.length>1000||e.program.length>5000){error.textContent='Сократите слишком длинный текст.';return}
  const previous=paymentPayload;savingEvent=true;document.querySelectorAll('#event-editor input,#event-editor textarea,#event-editor button').forEach(x=>x.disabled=true);
  try{paymentPayload={...paymentPayload,eventDetails:e};await saveData();renderEventDetails();document.getElementById('event-editor').classList.remove('open');eventReturnFocus?.focus()}
  catch(err){paymentPayload=previous;error.textContent='Не удалось сохранить: '+err.message}
@@ -228,3 +228,24 @@ const loadStatePanel=document.createElement('div');loadStatePanel.id='shared-dat
 document.querySelector('.app').prepend(loadStatePanel);
 loadStatePanel.querySelector('button').addEventListener('click',async()=>{await loadServer();if(serverReady)await startSession()});
 setDataLoadState('loading');
+
+/* Program text is an optional part of the event record. */
+const programField=document.createElement('div');programField.className='field';
+programField.innerHTML='<label for="event-program">Программа мероприятия</label><textarea id="event-program" maxlength="5000" placeholder="Каждый пункт — с новой строки. Например: время, название и описание"></textarea><small>До 5000 символов. Оставьте поле пустым, если программа ещё не утверждена.</small>';
+document.getElementById('event-error').before(programField);
+const programPanel=document.createElement('details');programPanel.id='event-program-panel';programPanel.className='row';
+programPanel.innerHTML='<summary><span>Программа мероприятия</span><small></small></summary><div class="program-text"></div><button hidden type="button" class="editbtn">Редактировать программу</button>';
+const programPlaceholder=[...document.querySelectorAll('#info .row')].find(x=>x.querySelector('b')?.textContent==='Программа мероприятия');
+if(programPlaceholder)programPlaceholder.replaceWith(programPanel);else document.getElementById('info').appendChild(programPanel);
+programPanel.querySelector('button').addEventListener('click',()=>{if(!admin||!verifiedAdmin||!serverReady)return;openEventEditor();document.getElementById('event-program').focus()});
+const programStyle=document.createElement('style');
+programStyle.textContent='#event-program-panel{display:block}#event-program-panel summary{cursor:pointer;min-height:44px;font-size:16px;font-weight:700}#event-program-panel summary small{display:block;font-size:12px;font-weight:400;color:#526b80;margin-top:6px}#event-program-panel .program-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7;font-size:15px;margin:14px 0}#event-program-panel button[hidden]{display:none!important}#event-program{min-height:220px}#event-program-panel summary:focus-visible{outline:2px solid #1685ee;outline-offset:4px}.shared-data-unavailable #event-program-panel{display:none!important}';
+document.head.appendChild(programStyle);
+const renderEventBeforeProgram=renderEventDetails;
+renderEventDetails=function(){
+ renderEventBeforeProgram();
+ const text=String(eventDetails().program||'').trim();
+ programPanel.querySelector('summary small').textContent=text?'Нажмите, чтобы посмотреть расписание':'Пока не утверждена';
+ programPanel.querySelector('.program-text').textContent=text||'Организаторы добавят программу после утверждения.';
+ programPanel.querySelector('button').hidden=!(admin&&verifiedAdmin&&serverReady);
+};
