@@ -142,7 +142,7 @@ render=function(){renderBeforeAnnouncement();renderAnnouncement()};
 
 /* Event details share the existing authenticated, revision-checked save path. */
 let savingEvent=false,eventReturnFocus=null;
-function eventDetails(){return paymentPayload.eventDetails||{date:'2027-06-26',time:'',venue:'Президент Отель',address:'',route:'',contacts:''}}
+function eventDetails(){return paymentPayload.eventDetails||{"date":"2027-06-26","time":"","venue":"Президент-Отель","address":"Москва, ул. Большая Якиманка, д. 24","route":"","contacts":"","program":"Предварительная программа по Приложению №1 к договору №710. Время и программа могут изменяться организатором в соответствии с договором.\n\n23:00–00:00 — Начало мероприятия\n• Вход участников\n• Фотосессии с выпускниками\n• Начало праздничного банкета\n\n00:00–05:00 — Развлекательная шоу-программа\n• Торжественное открытие\n• Выступления музыкантов\n• Интерактивная программа с ведущим\n• Световое шоу\n• Конкурсы и награждение победителей\n• Выступления танцоров\n• Флешмобы с артистами\n• Фотосессии с выпускниками\n• Дискотека с DJ\n\n05:00–05:30 — Завершение мероприятия\n• Выход участников\n• Фото- и видеосессия с выпускниками","albumTitle":"","albumUrl":""}}
 function safeRoute(value){if(!value)return '';try{const u=new URL(value);return u.protocol==='https:'&&!u.username&&!u.password?u.href:''}catch{return ''}}
 function eventDate(value){if(!value)return 'Уточняется';const parts=value.split('-');return parts.length===3?parts.reverse().join('.'):value}
 function renderEventDetails(){
