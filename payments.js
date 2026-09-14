@@ -152,15 +152,17 @@ function renderEventDetails(){
 }
 function openEventEditor(){
  if(!admin||!verifiedAdmin||!serverReady)return;
- const e=eventDetails();for(const key of ['date','time','venue','address','route','contacts','program'])document.getElementById('event-'+key).value=e[key]||'';
+ const e=eventDetails();for(const key of ['date','time','venue','address','route','contacts','program','albumTitle','albumUrl'])document.getElementById('event-'+key).value=e[key]||'';
  document.getElementById('event-error').textContent='';eventReturnFocus=document.activeElement;
  document.getElementById('event-editor').classList.add('open');document.getElementById('event-date').focus();
 }
 function closeEventEditor(){if(savingEvent)return;document.getElementById('event-editor').classList.remove('open');eventReturnFocus?.focus()}
 async function saveEventDetails(event){
  event.preventDefault();if(savingEvent||!admin||!verifiedAdmin||!serverReady)return;
- const e={};for(const key of ['date','time','venue','address','route','contacts','program'])e[key]=document.getElementById('event-'+key).value.trim();
+ const e={};for(const key of ['date','time','venue','address','route','contacts','program','albumTitle','albumUrl'])e[key]=document.getElementById('event-'+key).value.trim();
  const error=document.getElementById('event-error');error.textContent='';
+ if(e.albumUrl&&!safeRoute(e.albumUrl)){error.textContent='Для фотоальбома укажите полную ссылку https://';return}
+ if(e.albumTitle.length>150||e.albumUrl.length>2000){error.textContent='Сократите название или ссылку альбома.';return}
  if(e.route&&!safeRoute(e.route)){error.textContent='Для маршрута укажите полную ссылку, начинающуюся с https://';return}
  if(e.date&&(!/^\d{4}-\d{2}-\d{2}$/.test(e.date)||!Number.isFinite(Date.parse(e.date))||new Date(e.date).toISOString().slice(0,10)!==e.date)){error.textContent='Проверьте дату мероприятия.';return}
  if(e.time&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(e.time)){error.textContent='Проверьте время сбора.';return}
@@ -333,3 +335,14 @@ const expenseModal=document.createElement('div');expenseModal.id='expense-editor
 expenseModal.innerHTML='<form class="sheet"><h3 id="expense-editor-title">Статья расходов</h3><div class="note">Укажите общую плановую стоимость и общую сумму, уже оплаченную подрядчику. Здесь не учитываются взносы родителей.</div><div class="field"><label for="expense-name">Название статьи</label><input id="expense-name" maxlength="150" required></div><div class="field"><label for="expense-plan">Плановая сумма, ₽</label><input id="expense-plan" inputmode="decimal" placeholder="0"></div><div class="field"><label for="expense-paid">Всего оплачено подрядчику, ₽</label><input id="expense-paid" inputmode="decimal" placeholder="0"></div><div class="field"><label for="expense-note">Примечание</label><textarea id="expense-note" maxlength="1000" placeholder="Например: аванс перечислен, остаток после мероприятия"></textarea></div><p id="expense-error" role="alert"></p><div class="sheetactions"><button type="button" class="secondary">Отмена</button><button type="submit" class="primary">Сохранить</button></div></form>';
 document.body.appendChild(expenseModal);expenseModal.querySelector('form').addEventListener('submit',saveExpense);expenseModal.querySelector('button[type=button]').addEventListener('click',closeExpenseEditor);
 expenseModal.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();closeExpenseEditor()}if(event.key==='Tab'){const fields=[...expenseModal.querySelectorAll('input,textarea,button')].filter(x=>!x.disabled);if(!fields.length)return;const first=fields[0],last=fields[fields.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}}});
+
+/* Photo album link, editable through the authenticated event form. */
+const albumFields=document.createElement('div');albumFields.innerHTML='<div class="field"><label for="event-albumTitle">Название фотоальбома</label><input id="event-albumTitle" maxlength="150" placeholder="Фотографии выпускного"></div><div class="field"><label for="event-albumUrl">Ссылка на фотоальбом (https://)</label><input id="event-albumUrl" type="url" maxlength="2000" placeholder="https://…"><small>Проверьте доступ к альбому для родителей в самом сервисе. Очистите ссылку, чтобы скрыть альбом.</small></div>';
+document.getElementById('event-error').before(albumFields);
+const albumCard=document.createElement('div');albumCard.id='photo-album-card';albumCard.className='row';
+albumCard.innerHTML='<h3>Фотогалерея</h3><p></p><a target="_blank" rel="noopener noreferrer" hidden>Открыть фотоальбом ↗</a><button type="button" class="editbtn" hidden>Настроить фотоальбом</button>';
+const albumPlaceholder=[...document.querySelectorAll('#info .row')].find(x=>x.querySelector('b')?.textContent==='Фотогалерея');if(albumPlaceholder)albumPlaceholder.replaceWith(albumCard);else document.getElementById('info').appendChild(albumCard);
+albumCard.querySelector('button').addEventListener('click',()=>{if(!admin||!verifiedAdmin||!serverReady)return;openEventEditor();document.getElementById('event-albumUrl').focus()});
+const albumStyle=document.createElement('style');albumStyle.textContent='#photo-album-card{display:block}#photo-album-card h3{font-size:17px;margin:0 0 10px}#photo-album-card p{font-size:14px;line-height:1.5;color:#526b80;overflow-wrap:anywhere}#photo-album-card a{display:inline-block;background:#1685ee;color:white;padding:12px 14px;border-radius:14px;text-decoration:none;margin:0 8px 8px 0}#photo-album-card button{min-height:44px}#photo-album-card [hidden]{display:none!important}.shared-data-unavailable #photo-album-card{display:none!important}';document.head.appendChild(albumStyle);
+const renderEventBeforeAlbum=renderEventDetails;
+renderEventDetails=function(){renderEventBeforeAlbum();const e=eventDetails(),url=safeRoute(e.albumUrl||''),link=albumCard.querySelector('a');albumCard.querySelector('p').textContent=url?(e.albumTitle||'Фотографии выпускного'):'Фотоальбом пока не добавлен.';link.hidden=!url;if(url)link.href=url;else link.removeAttribute('href');albumCard.querySelector('button').hidden=!(admin&&verifiedAdmin&&serverReady)};
