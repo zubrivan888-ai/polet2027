@@ -52,7 +52,10 @@ function installListFilter(pageId,listId){
   list.before(panel);
   panel.querySelector('input').addEventListener('input',event=>{listFilters[pageId].query=event.target.value;applyListFilter(pageId,listId)});
   panel.querySelector('select').addEventListener('change',event=>{listFilters[pageId].className=event.target.value;applyListFilter(pageId,listId)});
-  panel.querySelector('button').addEventListener('click',()=>{listFilters[pageId]={query:'',className:''};panel.querySelector('input').value='';panel.querySelector('select').value='';applyListFilter(pageId,listId)});
+  panel.querySelector('button').addEventListener('click',()=>{listFilters[pageId]={query:'',className:''};panel.querySelector('input').value='';panel.querySelectorAll('select').forEach(select=>select.value='');applyListFilter(pageId,listId)});
+}
+function matchesPaymentFilter(person,status){
+ return !status||paymentStatus(person)===status;
 }
 function applyListFilter(pageId,listId){
   const {query,className}=listFilters[pageId],list=document.getElementById(listId),rows=[...list.querySelectorAll('.row')],headings=[...list.querySelectorAll('.classTitle')];
@@ -62,12 +65,12 @@ function applyListFilter(pageId,listId){
     for(const person of data[c]||[]){
       const visible=(!className||className===c)&&matchesFamily(person,query);
       const count=pageId==='participants'?1:1+(person.guests||[]).length;
-      for(let i=0;i<count;i++){const row=rows[index++];if(row)row.hidden=!visible;if(visible&&row){shown++;classShown++}}
+      for(let i=0;i<count;i++){const row=rows[index++],record=i===0?person:person.guestPayments?.[i-1]||{};const personVisible=visible&&(pageId!=='payments'||matchesPaymentFilter(record,listFilters.payments.status));if(row)row.hidden=!personVisible;if(personVisible&&row){shown++;classShown++}}
     }
     if(headings[ci])headings[ci].hidden=!classShown;
   });
   document.getElementById(pageId+'-found').textContent=shown
-    ? (pageId==='participants'?'Показано записей: ':'Показано людей: ')+shown+(query?' · вместе с семьёй':'')
+    ? (pageId==='participants'?'Показано записей: ':'Показано людей: ')+shown+(query?(pageId==='payments'&&listFilters.payments.status?' · совпавшие по статусу члены семьи':' · вместе с семьёй'):'')
     : 'Ничего не найдено. Проверьте имя или сбросьте фильтры.';
 }
 const listFilterStyle=document.createElement('style');
@@ -371,3 +374,9 @@ document.querySelectorAll('#home .grid .card .ico').forEach((icon,index)=>{
  icon.setAttribute('aria-hidden','true');
  icon.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+homeSectionIcons[index]+'</svg>';
 });
+
+/* Payment status filter applies to each person independently. */
+const paymentStatusField=document.createElement('div');paymentStatusField.className='list-filter-actions';
+paymentStatusField.innerHTML='<label for="payments-status">Оплата</label><select id="payments-status"><option value="">Все статусы</option><option>Не оплачено</option><option>Частично</option><option>Оплачено</option><option>Переплата</option><option>Стоимость не задана</option><option value="Частично · стоимость не задана">Есть взнос, стоимость не задана</option><option>Оплачено ранее</option></select>';
+document.getElementById('payments-found').before(paymentStatusField);
+paymentStatusField.querySelector('select').addEventListener('change',event=>{listFilters.payments.status=event.target.value;applyListFilter('payments','paylist')});
