@@ -356,6 +356,8 @@ renderEventDetails=function(){renderEventBeforeAlbum();const e=eventDetails(),ur
 /* Home readability and consistent section icons. */
 const homeVisualStyle=document.createElement('style');
 homeVisualStyle.textContent=`
+#home .hero{height:auto}
+#home .hero img{display:block;width:100%;height:auto;object-fit:contain}
 #home .classStat strong{font-family:Arial,sans-serif;font-weight:800;font-variant-numeric:tabular-nums;text-shadow:none;filter:none}
 #home .classStat strong:before,#home .classStat strong:after,#home .classStat small:after{display:none}
 #home .classStat small{font-family:Arial,sans-serif;font-size:12px!important;font-weight:600;letter-spacing:normal;opacity:1;transform:none}
