@@ -298,13 +298,13 @@ document.getElementById('payment-summary').appendChild(financeShareButton);
 let expenseEditing=null,savingExpense=false,expenseReturnFocus=null;
 function expenseKopecks(value){const n=Number(value||0);return Number.isFinite(n)?Math.round(n*100):0}
 function expenseTotals(list){
- return list.reduce((s,e)=>{const plan=expenseKopecks(e.amount),paid=expenseKopecks(e.paidAmount);s.plan+=plan;s.paid+=paid;s.due+=Math.max(0,plan-paid);s.over+=Math.max(0,paid-plan);return s},{plan:0,paid:0,due:0,over:0});
+ return list.reduce((s,e)=>{const plan=expenseKopecks(e.amount),paid=expenseKopecks(e.paidAmount);s.plan+=plan;s.paid+=paid;s.due+=Math.max(0,plan-paid);s.over+=e.amount==null?0:Math.max(0,paid-plan);return s},{plan:0,paid:0,due:0,over:0});
 }
 renderExpenses=function(){
- const total=expenseTotals(expenses),canEdit=admin&&verifiedAdmin&&serverReady;
- let h='<div class="payment-summary-card"><h3>Смета мероприятия</h3><dl><div><dt>План</dt><dd>'+rub(total.plan)+'</dd></div><div><dt>Оплачено</dt><dd>'+rub(total.paid)+'</dd></div><div><dt>Осталось</dt><dd>'+rub(total.due)+'</dd></div></dl><p>Оплаты подрядчикам и поставщикам. Взносы родителей учитываются в разделе «Статус оплаты».</p>'+(total.over?'<p>Сверх плана: '+rub(total.over)+'</p>':'')+'</div>';
- if(canEdit)h+='<button type="button" class="primary" style="margin:0 0 14px" onclick="editExpense(null)">＋ Добавить статью</button>';
- expenses.forEach((e,i)=>{const plan=expenseKopecks(e.amount),paid=expenseKopecks(e.paidAmount);h+='<div class="row"><div class="grow"><b>'+esc(e.name)+'</b><small>План: '+rub(plan)+'</small><small>Оплачено: '+rub(paid)+'</small><small>'+(paid>plan?'Сверх плана: '+rub(paid-plan):'Осталось: '+rub(plan-paid))+'</small>'+(e.note?'<small class="expense-note">'+esc(e.note)+'</small>':'')+'</div>'+(canEdit?'<button type="button" class="editbtn" onclick="editExpense('+i+')">Изменить</button>':'')+'</div>'});
+ const total=expenseTotals(expenses),canEdit=admin&&verifiedAdmin&&serverReady,unknown=expenses.some(e=>e.amount==null);
+ let h='<div class="payment-summary-card"><h3>Дополнительные расходы</h3><dl><div><dt>План</dt><dd>'+(unknown?'Уточняется':rub(total.plan))+'</dd></div><div><dt>Оплачено</dt><dd>'+rub(total.paid)+'</dd></div><div><dt>Осталось</dt><dd>'+(unknown?'Уточняется':rub(total.due))+'</dd></div></dl><p>Оплаты подрядчикам и поставщикам. Взносы родителей учитываются в разделе «Статус оплаты».</p>'+(total.over?'<p>Сверх плана: '+rub(total.over)+'</p>':'')+'</div>';
+
+ expenses.forEach((e,i)=>{const plan=expenseKopecks(e.amount),paid=expenseKopecks(e.paidAmount);h+='<div class="row"><div class="grow"><b>'+esc(e.name)+'</b><small>План: '+(e.amount==null?'Уточняется':rub(plan))+'</small><small>Оплачено: '+rub(paid)+'</small><small>'+(e.amount==null?'Осталось: уточняется':paid>plan?'Сверх плана: '+rub(paid-plan):'Осталось: '+rub(plan-paid))+'</small>'+(e.note?'<small class="expense-note">'+esc(e.note)+'</small>':'')+'</div>'+(canEdit?'<button type="button" class="editbtn" onclick="editExpense('+i+')">Изменить</button>':'')+'</div>'});
  if(!expenses.length)h+='<div class="muted">Статьи расходов пока не добавлены.</div>';
  document.getElementById('explist').innerHTML=h;
 };
@@ -314,7 +314,7 @@ function editExpense(i){
  const e=i===null?{name:'',amount:0,paidAmount:0,note:''}:expenses[i];if(!e)return;
  document.getElementById('expense-editor-title').textContent=i===null?'Новая статья расходов':'Статья расходов';
  document.getElementById('expense-name').value=e.name||'';
- document.getElementById('expense-plan').value=e.amount||'';
+ document.getElementById('expense-plan').value=e.amount??'';
  document.getElementById('expense-paid').value=e.paidAmount||'';
  document.getElementById('expense-note').value=e.note||'';
  document.getElementById('expense-error').textContent='';
@@ -328,7 +328,7 @@ async function saveExpense(event){
  try{
   const name=document.getElementById('expense-name').value.trim(),note=document.getElementById('expense-note').value.trim();
   if(!name||name.length>150||note.length>1000)throw Error('Укажите название до 150 символов и примечание до 1000 символов.');
-  const amount=moneyInput(document.getElementById('expense-plan').value)/100,paidAmount=moneyInput(document.getElementById('expense-paid').value)/100;
+  const planValue=moneyInput(document.getElementById('expense-plan').value,true),amount=planValue===null?null:planValue/100,paidAmount=moneyInput(document.getElementById('expense-paid').value)/100;
   const entry={...(expenseEditing===null?{}:expenses[expenseEditing]),name,amount,paidAmount,note};
   savingExpense=true;document.querySelectorAll('#expense-editor input,#expense-editor textarea,#expense-editor button').forEach(x=>x.disabled=true);
   if(expenseEditing===null)expenses.push(entry);else expenses[expenseEditing]=entry;
@@ -338,7 +338,7 @@ async function saveExpense(event){
 }
 const expenseStyle=document.createElement('style');expenseStyle.textContent='#expense-editor{z-index:147}#expense-editor textarea{width:100%;min-height:100px;border:1px solid #dfe6ed;border-radius:14px;padding:12px;font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}#expense-error{color:#a82d27;font-size:14px}.expense-note{white-space:pre-wrap;overflow-wrap:anywhere}';document.head.appendChild(expenseStyle);
 const expenseModal=document.createElement('div');expenseModal.id='expense-editor';expenseModal.className='modal';expenseModal.setAttribute('role','dialog');expenseModal.setAttribute('aria-modal','true');expenseModal.setAttribute('aria-labelledby','expense-editor-title');
-expenseModal.innerHTML='<form class="sheet"><h3 id="expense-editor-title">Статья расходов</h3><div class="note">Укажите общую плановую стоимость и общую сумму, уже оплаченную подрядчику. Здесь не учитываются взносы родителей.</div><div class="field"><label for="expense-name">Название статьи</label><input id="expense-name" maxlength="150" required></div><div class="field"><label for="expense-plan">Плановая сумма, ₽</label><input id="expense-plan" inputmode="decimal" placeholder="0"></div><div class="field"><label for="expense-paid">Всего оплачено подрядчику, ₽</label><input id="expense-paid" inputmode="decimal" placeholder="0"></div><div class="field"><label for="expense-note">Примечание</label><textarea id="expense-note" maxlength="1000" placeholder="Например: аванс перечислен, остаток после мероприятия"></textarea></div><p id="expense-error" role="alert"></p><div class="sheetactions"><button type="button" class="secondary">Отмена</button><button type="submit" class="primary">Сохранить</button></div></form>';
+expenseModal.innerHTML='<form class="sheet"><h3 id="expense-editor-title">Статья расходов</h3><div class="note">Укажите общую плановую стоимость и общую сумму, уже оплаченную подрядчику. Здесь не учитываются взносы родителей.</div><div class="field"><label for="expense-name">Название статьи</label><input id="expense-name" maxlength="150" required></div><div class="field"><label for="expense-plan">Плановая сумма, ₽</label><input id="expense-plan" inputmode="decimal" placeholder="Пока неизвестна"></div><div class="field"><label for="expense-paid">Всего оплачено подрядчику, ₽</label><input id="expense-paid" inputmode="decimal" placeholder="0"></div><div class="field"><label for="expense-note">Примечание</label><textarea id="expense-note" maxlength="1000" placeholder="Например: аванс перечислен, остаток после мероприятия"></textarea></div><p id="expense-error" role="alert"></p><div class="sheetactions"><button type="button" class="secondary">Отмена</button><button type="submit" class="primary">Сохранить</button></div></form>';
 document.body.appendChild(expenseModal);expenseModal.querySelector('form').addEventListener('submit',saveExpense);expenseModal.querySelector('button[type=button]').addEventListener('click',closeExpenseEditor);
 expenseModal.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();closeExpenseEditor()}if(event.key==='Tab'){const fields=[...expenseModal.querySelectorAll('input,textarea,button')].filter(x=>!x.disabled);if(!fields.length)return;const first=fields[0],last=fields[fields.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}}});
 
@@ -418,4 +418,16 @@ startSession=async function(){
  const j=await r.json();if(!r.ok||!j.ok)throw Error(j.error||'Не удалось применить стоимость.');
  if(j.changed)await loadServer();
  }catch(e){alert('Не удалось подтвердить обновление стоимости. Откройте приложение заново: '+e.message)}finally{clearTimeout(timer)}
+};
+
+/* One-time replacement of the untouched starter expense list. */
+const sessionBeforeExpenseSetup=startSession;
+startSession=async function(){
+ await sessionBeforeExpenseSetup();if(!verifiedAdmin||!tg?.initData)return;
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);
+ try{
+  const r=await fetch('/api/expense-setup',{method:'POST',signal:controller.signal,headers:{'x-telegram-init-data':tg.initData}});
+  const j=await r.json();if(!r.ok||!j.ok)throw Error(j.error||'Ошибка обновления сметы.');
+  if(j.changed)await loadServer();
+ }catch(e){alert('Не удалось подтвердить обновление расходов: '+e.message)}finally{clearTimeout(timer)}
 };

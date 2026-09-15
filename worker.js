@@ -119,6 +119,20 @@ async function handleApi(request,env,url){
     }
     return json({ok:false,error:'База изменилась. Откройте приложение заново.'},409);
   }
+
+  if(request.method==='POST'&&url.pathname==='/api/expense-setup'){
+    const auth=await getAuth(request,env);if(!auth.admin)return json({ok:false,error:'UNAUTHORIZED'},401);
+    const row=await env.DB.prepare('SELECT payload FROM app_state WHERE id = 1').first();
+    if(!row)return json({ok:false,error:'Нет данных.'},409);
+    const body=JSON.parse(row.payload);
+    if(body.expenseSetupVersion===1)return json({ok:true,changed:false});
+    if(JSON.stringify(body.expenses)!=="[{\"name\":\"Ресторан / банкет\",\"amount\":0},{\"name\":\"Ведущий\",\"amount\":0},{\"name\":\"Фотограф\",\"amount\":0},{\"name\":\"Видео\",\"amount\":0},{\"name\":\"Украшение зала\",\"amount\":0},{\"name\":\"Подарки\",\"amount\":0},{\"name\":\"Аренда\",\"amount\":0},{\"name\":\"Прочие расходы\",\"amount\":0}]")return json({ok:false,error:'Смета изменилась. Автоматическая замена остановлена, данные сохранены.'},409);
+    body.expenses=[{name:'Транспортные расходы (трансфер)',amount:null,paidAmount:0,note:'Автобус до места проведения мероприятия.'},{name:'Прочие расходы',amount:null,paidAmount:0,note:''}];
+    body.expenseSetupVersion=1;body._revision=(body._revision||0)+1;
+    const result=await env.DB.prepare("UPDATE app_state SET payload=?, updated_at=datetime('now') WHERE id=1 AND payload=?").bind(JSON.stringify(body),row.payload).run();
+    if(result.meta?.changes!==1)return json({ok:false,error:'База изменилась. Откройте приложение заново.'},409);
+    return json({ok:true,changed:true});
+  }
   if(request.method==='GET'&&url.pathname==='/api/data'){
     const row=await env.DB.prepare('SELECT payload FROM app_state WHERE id = 1').first();if(!row)return json({ok:true,data:null});let payload=JSON.parse(row.payload);const migrated=migrateAppData(payload);payload=migrated.payload;if(migrated.changed)await env.DB.prepare(`UPDATE app_state SET payload=?, updated_at=datetime('now') WHERE id=1`).bind(JSON.stringify(payload)).run();return json({ok:true,data:payload})
   }
