@@ -407,8 +407,54 @@ function syncRolePriceField(){
 }
 const teacherOption=document.createElement('option');teacherOption.value='teacher';teacherOption.textContent='Преподаватель · бесплатно';document.getElementById('roleInput').appendChild(teacherOption);
 const freeFilter=document.createElement('option');freeFilter.textContent='Бесплатно';document.getElementById('payments-status').appendChild(freeFilter);
-const teacherNote=document.createElement('p');teacherNote.className='muted';teacherNote.style.textAlign='center';document.querySelector('#home .stats').after(teacherNote);
-const renderBeforeTeachers=render;render=function(){renderBeforeTeachers();const count=['11А','11Б','11В'].reduce((n,c)=>n+(data[c]||[]).filter(p=>p.role==='teacher').length,0);teacherNote.hidden=!serverReady;teacherNote.textContent='Преподаватели: '+count+' из 5 бесплатных мест';};
+/* Home counts are read-only projections of the existing roster. */
+const homeClassCards=[...document.querySelectorAll('#home .classStat')];
+homeClassCards.forEach(card=>{
+ const rows=document.createElement('div');rows.className='home-role-counts';
+ rows.innerHTML='<div><span aria-hidden="true">🎓</span><span class="home-graduates"></span></div><div><span aria-hidden="true">👥</span><span class="home-companions"></span></div>';
+ card.appendChild(rows);
+});
+const homeRosterSummary=document.createElement('div');homeRosterSummary.id='home-roster-summary';
+homeRosterSummary.innerHTML='<div class="home-count-legend"><span>🎓 Выпускники</span><span>👥 Сопровождающие</span></div><div class="home-teachers"><span class="home-teacher-icon" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="11" r="6"/><path d="M4 41V27c0-5 3-7 8-7s8 2 8 7v14M23 9h20v20H32M20 27l7 6 8-10M27 33v-8l5 1"/></svg></span><div class="home-teacher-copy"><b>Преподаватели</b><span>Бесплатное участие · до 5 мест</span></div><strong class="home-teacher-count"></strong></div><div class="home-roster-total"><b></b><span>включая преподавателей</span></div>';
+document.querySelector('#home .classStats').after(homeRosterSummary);
+const homeCountsStyle=document.createElement('style');
+homeCountsStyle.textContent=`
+#home .classStat>strong,#home .classStat>small{display:none}
+#home .home-role-counts{display:grid;gap:3px;margin-top:4px}
+#home .home-role-counts>div{display:flex;justify-content:center;align-items:center;gap:7px;line-height:24px}
+#home .home-role-counts>div>span:first-child{font-size:20px;width:25px;text-align:center}
+#home .home-graduates,#home .home-companions{font-family:Arial,sans-serif;font-size:23px;font-weight:700;min-width:28px;text-align:center;font-variant-numeric:tabular-nums}
+#home-roster-summary{margin:0 16px 14px}
+#home .classStats{margin-bottom:8px}
+#home .home-count-legend{display:flex;justify-content:center;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:#526579;margin-bottom:12px}
+#home .home-teachers{display:flex;align-items:center;gap:12px;padding:14px;background:#f9fcfe;border-radius:22px}
+#home .home-teacher-icon{display:grid;place-items:center;flex:0 0 44px;height:44px;border-radius:14px;background:#eaf3ff;color:#216ca8}
+#home .home-teacher-icon svg{width:34px;height:34px}
+#home .home-teacher-copy{flex:1;min-width:0}
+#home .home-teacher-copy b{display:block;font-size:16px;color:#183e64}
+#home .home-teacher-copy>span{display:block;font-size:12px;line-height:1.4;color:#778496;margin-top:3px}
+#home .home-teacher-count{font-family:Arial,sans-serif;font-size:32px;color:#1676bd}
+#home .home-roster-total{text-align:center;margin-top:10px}
+#home .home-roster-total b{display:block;font-size:16px;color:#183e64}
+#home .home-roster-total>span{display:block;font-size:12px;color:#778496;margin-top:3px}
+.shared-data-unavailable #home-roster-summary,#home-roster-summary[hidden]{display:none!important}
+@media(max-width:359px){#home .classStat b{font-size:16px}#home .home-teachers{gap:8px;padding:12px}#home .home-teacher-copy b{font-size:15px}}
+`;
+document.head.appendChild(homeCountsStyle);
+const renderBeforeTeachers=render;render=function(){
+ renderBeforeTeachers();
+ let teachers=0,total=0;
+ ['11А','11Б','11В'].forEach((c,i)=>{
+  const stats=reportStats(c),card=homeClassCards[i];teachers+=stats.teachers;total+=stats.total;
+  card.querySelector('.home-graduates').textContent=stats.students;
+  card.querySelector('.home-companions').textContent=stats.guests;
+  card.querySelector('.home-role-counts').setAttribute('aria-label','Выпускники: '+stats.students+'; сопровождающие: '+stats.guests);
+ });
+ homeRosterSummary.hidden=!serverReady;
+ homeRosterSummary.querySelector('.home-teacher-count').textContent=teachers;
+ const word=total%100>=11&&total%100<=14?'человек':total%10>=2&&total%10<=4?'человека':'человек';
+ homeRosterSummary.querySelector('.home-roster-total b').textContent='Всего — '+total+' '+word;
+};
 const sessionBeforePrices=startSession;
 startSession=async function(){
  await sessionBeforePrices();if(!verifiedAdmin||!tg?.initData)return;
