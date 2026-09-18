@@ -593,3 +593,18 @@ refreshReport=function(){
 const compactReportStyle=document.createElement('style');
 compactReportStyle.textContent='#reportModal .reportDocTotal{font-size:15px;color:#145a9d;font-weight:700;margin-top:12px;padding-top:10px;border-top:1px solid #cbdce8}#reportModal .reportDocLine strong,#reportModal .reportDocClass strong,#reportModal .reportDocKind strong,#reportModal .reportDocTitle strong{font-weight:800}';
 document.head.appendChild(compactReportStyle);
+
+/* Detailed class reports show only actual contributions. */
+function contributionsOnlyReportText(text){
+  const nl=String.fromCharCode(10);
+  return String(text||'').split(nl).map(line=>{
+    const match=line.match(/^([ ]*)(.*?)(?: —|-) .*?Внесено:[ ]*([^;]+)(?:;.*)?$/);
+    if(!match)return line;
+    return match[1]+match[2].trim()+' — Внесено: '+match[3].trim();
+  }).join(nl);
+}
+const reportBuildBeforeContributionsOnly=buildReport;
+buildReport=function(){
+  const text=reportBuildBeforeContributionsOnly();
+  return reportType==='class'||reportType==='all'?contributionsOnlyReportText(text):text;
+};
