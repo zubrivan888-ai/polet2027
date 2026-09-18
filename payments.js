@@ -595,14 +595,51 @@ compactReportStyle.textContent='#reportModal .reportDocTotal{font-size:15px;colo
 document.head.appendChild(compactReportStyle);
 
 /* Detailed class reports show only actual contributions. */
+function reportClassPaymentTotal(c){
+  return (data[c]||[]).reduce((sum,p)=>{
+    const own=accountOf(p).stages.reduce((s,x)=>s+x.amount,0);
+    const guests=(p.guestPayments||[]).reduce((s,g)=>s+accountOf(g).stages.reduce((a,x)=>a+x.amount,0),0);
+    return sum+own+guests;
+  },0);
+}
+function reportClassSummaryLines(c){
+  const s=reportStats(c);
+  return [
+    '🎓 Выпускники: *'+s.students+'*',
+    '👥 Сопровождающие: *'+s.guests+'*',
+    '📚 Преподаватели: *'+s.teachers+'*',
+    '👥 Всего человек: *'+s.total+'*',
+    '💰 Внесено: *'+rub(reportClassPaymentTotal(c))+'*'
+  ];
+}
 function contributionsOnlyReportText(text){
-  const nl=String.fromCharCode(10);
-  return String(text||'').split(nl).map(line=>{
-    /* Detailed rows use both semicolons and middle dots as separators. */
+  const nl=String.fromCharCode(10),out=[],seenClasses=[];
+  let currentClass='',personNo=0;
+  String(text||'').split(nl).forEach(line=>{
+    const header=line.match(/^(🏫\s*)?\*?(11[АБВ])(?: класс)?\*?$/);
+    if(header){
+      currentClass=header[2];personNo=0;seenClasses.push(currentClass);
+      out.push(line);
+      reportClassSummaryLines(currentClass).forEach(x=>out.push(x));
+      return;
+    }
     const match=line.match(/^(\s*)(.*?)(?:\s+—|\s+-)\s+.*?Внесено:\s*([^;·\n]+?)(?:\s*[;·].*)?$/);
-    if(!match)return line;
-    return match[1]+match[2].trim()+' — Внесено: '+match[3].trim();
-  }).join(nl);
+    if(match&&currentClass){
+      personNo++;
+      out.push(match[1]+personNo+'. '+match[2].trim()+' — Внесено: '+match[3].trim());
+      return;
+    }
+    out.push(line);
+  });
+  if(reportType==='all'&&seenClasses.length){
+    const total=seenClasses.reduce((a,c)=>a+reportStats(c).total,0);
+    const students=seenClasses.reduce((a,c)=>a+reportStats(c).students,0);
+    const guests=seenClasses.reduce((a,c)=>a+reportStats(c).guests,0);
+    const teachers=seenClasses.reduce((a,c)=>a+reportStats(c).teachers,0);
+    const paid=seenClasses.reduce((a,c)=>a+reportClassPaymentTotal(c),0);
+    out.push('','📌 *ИТОГО ПО ВСЕМ КЛАССАМ*','🎓 Выпускники: *'+students+'*','👥 Сопровождающие: *'+guests+'*','📚 Преподаватели: *'+teachers+'*','👥 Всего человек: *'+total+'*','💰 Внесено: *'+rub(paid)+'*');
+  }
+  return out.join(nl);
 }
 const reportBuildBeforeContributionsOnly=buildReport;
 buildReport=function(){
