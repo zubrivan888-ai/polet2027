@@ -479,3 +479,66 @@ startSession=async function(){
   if(j.changed)await loadServer();
  }catch(e){alert('Не удалось подтвердить обновление расходов: '+e.message)}finally{clearTimeout(timer)}
 };
+
+/* Report presentation: readable blocks, generated timestamp, no app URL in footer. */
+function reportFooterTimestamp(){
+  return new Intl.DateTimeFormat('ru-RU',{dateStyle:'short',timeStyle:'short'}).format(new Date());
+}
+function decorateReportText(raw){
+  const nl=String.fromCharCode(10);
+  const lines=String(raw||'').split(nl).map(x=>x.trimEnd()).filter(x=>!x.toLowerCase().startsWith('http://')&&!x.toLowerCase().startsWith('https://'));
+  const body=[];
+  for(const line of lines){
+    if(!line.trim())continue;
+    if(line.startsWith('Выпускной 2027')){body.push('🎓 ВЫПУСКНОЙ 2027');body.push('МБОУ «Образовательный центр «Полёт»»');continue;}
+    if(line.includes('Краткий общий отчёт')){body.push('📊 КРАТКИЙ ОТЧЁТ');continue;}
+    if(line.startsWith('Общий отчёт по всем классам')){body.push('📋 ОТЧЁТ ПО ВСЕМ КЛАССАМ');continue;}
+    if(line.startsWith('11А: выпускников')||line.startsWith('11Б: выпускников')||line.startsWith('11В: выпускников')||line.includes(' класс — выпускников ')){
+      const m=line.match(/^(11[АБВ])(?: класс)?(?: —|:) выпускников ([0-9]+), сопровождающих ([0-9]+), преподавателей ([0-9]+), всего ([0-9]+)/);
+      if(m){body.push('🏫 '+m[1]+' класс');body.push('🎓 Выпускники: '+m[2]);body.push('👥 Сопровождающие: '+m[3]);body.push('📚 Преподаватели: '+m[4]);body.push('Всего: '+m[5]);continue;}
+    }
+    if(line.startsWith('ИТОГО:')){body.push('');body.push('━━━━━━━━━━━━━━━━');body.push('ИТОГО');body.push(line.replace(/^ИТОГО:[ ]*/,'').replaceAll(', ',nl));continue;}
+    body.push(line);
+  }
+  return body.join(nl)+nl+nl+'━━━━━━━━━━━━━━━━'+nl+'🕒 Отчёт сформирован: '+reportFooterTimestamp();
+}
+const reportBuildBeforePresentation=buildReport;
+buildReport=function(){return decorateReportText(reportBuildBeforePresentation());};
+function escapeReportHtml(value){
+  return String(value).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+}
+function reportPreviewHtml(value){
+  return String(value).split(String.fromCharCode(10)).map(line=>{
+    const safe=escapeReportHtml(line);
+    if(!safe)return '<div class="reportDocGap"></div>';
+    if(line.startsWith('🎓 ВЫПУСКНОЙ'))return '<div class="reportDocTitle">'+safe+'</div>';
+    if(line.startsWith('МБОУ'))return '<div class="reportDocSubtitle">'+safe+'</div>';
+    if(line.startsWith('📊 ')||line.startsWith('📋 '))return '<div class="reportDocKind">'+safe+'</div>';
+    if(line.startsWith('🏫 '))return '<div class="reportDocClass">'+safe+'</div>';
+    if(line.startsWith('━━━━━━━━'))return '<div class="reportDocRule"></div>';
+    if(line.startsWith('🕒 '))return '<div class="reportDocFooter">'+safe+'</div>';
+    return '<div class="reportDocLine">'+safe+'</div>';
+  }).join('');
+}
+const reportRefreshBeforePresentation=refreshReport;
+refreshReport=function(){
+  reportRefreshBeforePresentation();
+  const preview=document.getElementById('reportPreview');
+  if(preview)preview.innerHTML=reportPreviewHtml(buildReport());
+  document.querySelectorAll('.reportTypes button,.reportClassPick button').forEach(button=>button.setAttribute('aria-pressed',String(button.classList.contains('on'))));
+};
+shareTelegram=function(){window.open('https://t.me/share/url?text='+encodeURIComponent(buildReport()),'_blank');};
+shareWhatsApp=function(){window.open('https://wa.me/?text='+encodeURIComponent(buildReport()),'_blank');};
+const reportPresentationStyle=document.createElement('style');
+reportPresentationStyle.textContent=`
+#reportModal .reportPreview{background:linear-gradient(145deg,#ffffff,#f3f8fc);border:1px solid #dceaf4;padding:18px 16px;line-height:1.48;box-shadow:0 5px 18px #22334a0b}
+#reportModal .reportDocTitle{font-size:19px;font-weight:800;color:#145a9d;letter-spacing:.2px}
+#reportModal .reportDocSubtitle{font-size:13px;color:#607a92;margin:3px 0 14px}
+#reportModal .reportDocKind{font-size:16px;font-weight:800;color:#245f86;margin:6px 0 10px}
+#reportModal .reportDocClass{font-size:16px;font-weight:800;color:#183e64;margin:13px 0 4px;padding-top:8px;border-top:1px solid #dce8f0}
+#reportModal .reportDocLine{font-size:14px;color:#31465c;white-space:pre-wrap}
+#reportModal .reportDocGap{height:5px}
+#reportModal .reportDocRule{height:1px;background:#cbdce8;margin:13px 0 9px}
+#reportModal .reportDocFooter{font-size:12px;color:#718394;text-align:center;padding-top:2px}
+`;
+document.head.appendChild(reportPresentationStyle);
