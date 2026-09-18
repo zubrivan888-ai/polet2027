@@ -599,7 +599,7 @@ function contributionsOnlyReportText(text){
   const nl=String.fromCharCode(10);
   return String(text||'').split(nl).map(line=>{
     /* Detailed rows use both semicolons and middle dots as separators. */
-    const match=line.match(/^(\\s*)(.*?)(?:\\s+—|\\s+-)\\s+.*?Внесено:\\s*([^;·\\n]+?)(?:\\s*[;·].*)?$/);
+    const match=line.match(/^(\s*)(.*?)(?:\s+—|\s+-)\s+.*?Внесено:\s*([^;·\n]+?)(?:\s*[;·].*)?$/);
     if(!match)return line;
     return match[1]+match[2].trim()+' — Внесено: '+match[3].trim();
   }).join(nl);
