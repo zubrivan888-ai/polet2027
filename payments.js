@@ -542,3 +542,54 @@ reportPresentationStyle.textContent=`
 #reportModal .reportDocFooter{font-size:12px;color:#718394;text-align:center;padding-top:2px}
 `;
 document.head.appendChild(reportPresentationStyle);
+
+/* Compact WhatsApp report layout with Markdown emphasis. */
+function compactReportMarkdown(text){
+  const nl=String.fromCharCode(10),lines=String(text||'').split(nl),out=[];
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i];
+    if(!line.trim())continue;
+    if(line.startsWith('🎓 ВЫПУСКНОЙ 2027')){out.push('🎓 *ВЫПУСКНОЙ 2027*');continue;}
+    if(line.startsWith('МБОУ')){out.push(line);continue;}
+    if(line.startsWith('📊 ')||line.startsWith('📋 ')){out.push('*'+line+'*');continue;}
+    if(line.startsWith('🏫 ')){out.push('');out.push(line.replace(/^🏫 (.+)$/,'🏫 *$1*'));continue;}
+    if(line.startsWith('🎓 Выпускники: ')){out.push(line.replace(/^🎓 Выпускники: (.+)$/,'🎓 Выпускники — *$1*'));continue;}
+    if(line.startsWith('👥 Сопровождающие: ')){out.push(line.replace(/^👥 Сопровождающие: (.+)$/,'👥 Сопровождающие — *$1*'));continue;}
+    if(line.startsWith('📚 Преподаватели: ')){out.push(line.replace(/^📚 Преподаватели: (.+)$/,'📚 Преподаватели — *$1*'));continue;}
+    if(line.startsWith('Всего: ')){out.push(line.replace(/^Всего: (.+)$/,'*Всего — $1*'));continue;}
+    if(line.startsWith('🕒 '))continue;
+    if(line==='━━━━━━━━━━━━━━━━'){
+      if(lines[i+1]==='ИТОГО'){
+        const a=(lines[i+2]||'').trim(),b=(lines[i+3]||'').trim(),c=(lines[i+4]||'').trim(),d=(lines[i+5]||'').trim();
+        const total=(d.match(/[0-9]+/)||['—'])[0];
+        const grads=(a.match(/[0-9]+/)||['—'])[0],guests=(b.match(/[0-9]+/)||['—'])[0],teachers=(c.match(/[0-9]+/)||['—'])[0];
+        out.push('');out.push('📌 *ИТОГО — '+total+' человек*');out.push('🎓 '+grads+' выпускников · 👥 '+guests+' сопровождающих · 📚 '+teachers+' преподаватель');i+=5;
+      }
+      continue;
+    }
+    out.push(line);
+  }
+  return out.join(nl).replace(/\\n{3,}/g,nl+nl)+nl+nl+'🕒 Отчёт сформирован: '+reportFooterTimestamp();
+}
+const reportBuildBeforeCompact=buildReport;
+buildReport=function(){return compactReportMarkdown(reportBuildBeforeCompact());};
+function reportPreviewMarkdownHtml(value){
+  return String(value).split(String.fromCharCode(10)).map(line=>{
+    const safe=escapeReportHtml(line).replace(/\\*([^*]+)\\*/g,'<strong>$1</strong>');
+    if(!safe)return '<div class="reportDocGap"></div>';
+    if(line.startsWith('🎓 *ВЫПУСКНОЙ'))return '<div class="reportDocTitle">'+safe+'</div>';
+    if(line.startsWith('📊 ')||line.startsWith('📋 '))return '<div class="reportDocKind">'+safe+'</div>';
+    if(line.startsWith('🏫 '))return '<div class="reportDocClass">'+safe+'</div>';
+    if(line.startsWith('📌 '))return '<div class="reportDocTotal">'+safe+'</div>';
+    if(line.startsWith('🕒 '))return '<div class="reportDocFooter">'+safe+'</div>';
+    return '<div class="reportDocLine">'+safe+'</div>';
+  }).join('');
+}
+refreshReport=function(){
+  const preview=document.getElementById('reportPreview');
+  if(preview)preview.innerHTML=reportPreviewMarkdownHtml(buildReport());
+  document.querySelectorAll('.reportTypes button,.reportClassPick button').forEach(button=>button.setAttribute('aria-pressed',String(button.classList.contains('on'))));
+};
+const compactReportStyle=document.createElement('style');
+compactReportStyle.textContent='#reportModal .reportDocTotal{font-size:15px;color:#145a9d;font-weight:700;margin-top:12px;padding-top:10px;border-top:1px solid #cbdce8}#reportModal .reportDocLine strong,#reportModal .reportDocClass strong,#reportModal .reportDocKind strong,#reportModal .reportDocTitle strong{font-weight:800}';
+document.head.appendChild(compactReportStyle);
