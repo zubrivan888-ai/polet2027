@@ -25,9 +25,9 @@
  const page=document.createElement('section');page.id='receipts710';page.className='page';
  page.innerHTML='<button type="button" class="back">← Назад</button><h2>Чеки об оплате</h2><h3>Первый взнос</h3><p class="receipt-note">Фискальные чеки ООО «АБ Ивент» по договору №710. Это подтверждение перечисления общей суммы по каждому классу. Контактные данные покупателя в публичных копиях скрыты.</p><div class="receipt-cards"></div>';
  const receipts=[
-  {className:'11А',path:'/documents/receipt-710-a-stage1.pdf',amount:'160 000',date:'20.09.2026',number:'№642'},
-  {className:'11Б',path:'/documents/receipt-710-b-stage1.pdf',amount:'136 000',date:'20.09.2026',number:'№643'},
-  {className:'11В',path:'/documents/receipt-710-v-stage1.pdf',amount:'96 000',date:'21.09.2026',number:'№646'}
+  {className:'11А',path:'/documents/receipt-710-a-stage1.pdf?v=20260923',amount:'160 000',date:'20.09.2026',number:'№642'},
+  {className:'11Б',path:'/documents/receipt-710-b-stage1.pdf?v=20260923',amount:'136 000',date:'20.09.2026',number:'№643'},
+  {className:'11В',path:'/documents/receipt-710-v-stage1.pdf?v=20260923',amount:'96 000',date:'21.09.2026',number:'№646'}
  ];
  for(const r of receipts){
   const card=document.createElement('article');card.className='receipt-card';
